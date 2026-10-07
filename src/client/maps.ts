@@ -3,11 +3,23 @@ import type { RefObject } from 'preact';
 
 let loading: Promise<void> | null = null;
 
+/** 地図の読み込みが Google に断られたとき（API キーのウェブサイトの制限・課金の設定など）に、地図の場所に出す案内 */
+const AUTH_FAILURE_MESSAGE =
+  '地図を表示できません。地図の API キーが使えない状態です（キーのウェブサイトの制限や課金の設定など。ブラウザの JavaScript コンソールに詳しい内容が出ています）。サーバーの管理者に連絡してください。';
+/** 一度断られたら、ページを読み込み直すまで地図は使えない */
+let authFailed = false;
+const authFailureListeners = new Set<() => void>();
+
 /** Maps JavaScript API を1回だけ読み込む */
 export function loadMaps(key: string): Promise<void> {
   if (loading) return loading;
   loading = new Promise((resolve, reject) => {
     (window as any).__gtexpMapsReady = () => resolve();
+    // 認証に失敗すると Google のライブラリがこの関数を呼ぶ（地図には Google の短い案内しか出ないので、こちらでも知らせる）
+    (window as any).gm_authFailure = () => {
+      authFailed = true;
+      authFailureListeners.forEach((fn) => fn());
+    };
     const script = document.createElement('script');
     const q = new URLSearchParams({ key, v: 'weekly', loading: 'async', libraries: 'marker', language: 'ja', region: 'JP', callback: '__gtexpMapsReady' });
     script.src = `https://maps.googleapis.com/maps/api/js?${q}`;
@@ -29,9 +41,17 @@ export function useGoogleMap(el: RefObject<HTMLDivElement>, apiKey: string, mapI
     if (!apiKey) return;
     let alive = true;
     let stopLocate: (() => void) | null = null;
+    // 断られたら地図を捨てる（ピンなどを作り続けて、続きのエラーが出ないように）
+    const onAuthFailure = () => {
+      if (!alive) return;
+      setMap(null);
+      setError(AUTH_FAILURE_MESSAGE);
+    };
+    authFailureListeners.add(onAuthFailure);
     loadMaps(apiKey)
       .then(() => {
         if (!alive || !el.current) return;
+        if (authFailed) return onAuthFailure();
         const m = new google.maps.Map(el.current, {
           mapId,
           center: { lat: 35.68, lng: 139.76 },
@@ -45,6 +65,7 @@ export function useGoogleMap(el: RefObject<HTMLDivElement>, apiKey: string, mapI
       .catch((e) => alive && setError(e.message));
     return () => {
       alive = false;
+      authFailureListeners.delete(onAuthFailure);
       stopLocate?.();
     };
   }, [apiKey, mapId]);
