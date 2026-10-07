@@ -1,7 +1,9 @@
 #!/bin/sh
-# 最新版に更新してビルドする。リポジトリを展開したフォルダーで実行する:
-#   sudo sh deploy/update.sh [install.sh への指定]   … 更新・ビルドのあと、install.sh でサービスを入れ直して再起動し、確かめる（おすすめ）
-#   sh deploy/update.sh                             … 動かすユーザーで、更新・ビルドと確認だけ（再起動は別に行う）
+# 最新版に更新してビルドする（どこから実行してもよい）:
+#   sudo sh /home/gtexp/gtexp/deploy/update.sh [install.sh への指定]
+#       … sudo できる管理者のアカウントで。更新・ビルドを動かすユーザーとして行ったあと、install.sh でサービスを入れ直して再起動し、確かめる（おすすめ）
+#   sh ~/gtexp/deploy/update.sh
+#       … 動かすユーザーで。更新・ビルドと確認だけ（動かすユーザーには sudo の権限を持たせないので、再起動は管理者が行う）
 # 設定（gtexp.config.json）・データ（data/）・ログ（log/）は Git の管理対象外なので、更新しても変わらない。
 set -eu
 cd "$(dirname "$0")/.."
@@ -21,4 +23,4 @@ fi
 
 sh -c "$UPDATE"
 node dist/server.mjs check || true
-echo "ビルドしました。サービスを再起動してください（sudo sh deploy/install.sh か、Linux: sudo systemctl restart gtexp / FreeBSD: sudo service gtexp restart）"
+echo "ビルドしました。管理者のアカウントで、サービスを入れ直して再起動してください: sudo sh $APP_DIR/deploy/install.sh"

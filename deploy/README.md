@@ -6,7 +6,14 @@ Web サーバー（Apache または nginx）が HTTPS を受け、Node.js のサ
 Linux（Debian / Ubuntu）を前提に説明し、FreeBSD で異なる点は「FreeBSD の場合」として補足します。
 以下、公開するホスト名を `gtexp.example.com`、アプリを動かすユーザーを `gtexp` として記載します。環境に合わせて読み替えてください。
 
-この文書はサーバーの管理者向けです。データの取り込みは、次のように分担します。
+この文書はサーバーの管理者向けです。サーバーでは、2 つのアカウントを使い分けます。
+
+| アカウント | 役割 |
+|---|---|
+| 管理者（sudo できる、自分のアカウント） | パッケージ・サービス・Web サーバーの設定。この文書の `sudo` で始まるコマンドは、すべてこのアカウントで実行します |
+| 動かすユーザー（`gtexp`） | gtexp を動かし、ファイルを持つ。sudo の権限は持たせません（持たせるとセキュリティ上の問題になるため）。管理者から `sudo -iu gtexp` で切り替えて使います |
+
+データの取り込みは、次のように分担します。
 
 | 入れる人 | データ | 方法 |
 |---|---|---|
@@ -64,16 +71,11 @@ sudo pw useradd gtexp -m -s /bin/sh
 
 ## 2. 展開して設置する
 
-リポジトリを、動かすユーザーで展開します（`sudo -iu gtexp` で切り替え）。
+管理者のアカウントで、リポジトリを動かすユーザーのホームに展開し、設置スクリプトを実行します。
 
 ```sh
-git clone https://github.com/gorry/gtexp.git ~/gtexp
-```
-
-続けて、管理者で設置スクリプトを実行します。
-
-```sh
-cd ~gtexp/gtexp && sudo sh deploy/install.sh
+sudo -iu gtexp git clone https://github.com/gorry/gtexp.git /home/gtexp/gtexp
+sudo sh /home/gtexp/gtexp/deploy/install.sh
 ```
 
 `install.sh` は次のことを行います。何度実行しても構いません（今の状態を見て、足りないところだけ直します）。ファイルは消しません。
@@ -99,7 +101,7 @@ vi gtexp.config.json                    # mapsApiKey を書く（「6」を参�
 node dist/server.mjs user-add alice     # 利用者を追加する（パスワードを 2 回聞かれる）
 ```
 
-設定を変えたら、サービスを再起動します（`sudo systemctl restart gtexp`。FreeBSD は `sudo service gtexp restart`。`sudo sh deploy/install.sh` でもよい）。
+設定を変えたら、管理者のアカウントでサービスを再起動します（`sudo systemctl restart gtexp`。FreeBSD は `sudo service gtexp restart`。`sudo sh /home/gtexp/gtexp/deploy/install.sh` でもよい）。
 
 | 項目 | 内容 |
 |---|---|
@@ -280,11 +282,11 @@ cd ~/gtexp && node --max-old-space-size=2048 dist/server.mjs import /path/to/tim
 ## 8. 更新する
 
 ```sh
-cd ~gtexp/gtexp && sudo sh deploy/update.sh
+sudo sh /home/gtexp/gtexp/deploy/update.sh      # 管理者のアカウントで
 ```
 
 更新とビルド（`git pull` → `npm ci` → `npm run build`）は、展開したフォルダーの持ち主で行います。そのあと `install.sh` を続けて実行し、サービスの定義を今の版に合わせて再起動し、設置を確かめます。
-動かすユーザーで `sh deploy/update.sh` を実行すると、更新・ビルドと確認だけを行います（再起動は別に行ってください）。
+動かすユーザーで `sh ~/gtexp/deploy/update.sh` を実行すると、更新・ビルドと確認だけを行います（再起動は管理者が行います）。
 
 ## 9. 住所のデータを入れる（任意）
 
@@ -326,7 +328,7 @@ sh ~/gtexp/deploy/make-osm-poi.sh
 cron で毎時、まだ調べていない地点をよく行く順に最大 150 か所、Nominatim に問い合わせて住所を蓄積します（15〜25 秒に 1 回の問い合わせで、公開サーバーの利用規約の範囲内です）。海外の地点にも住所が付きます。
 
 ```sh
-cd ~gtexp/gtexp && sudo sh deploy/install.sh --osm-cron
+sudo sh /home/gtexp/gtexp/deploy/install.sh --osm-cron      # 管理者のアカウントで
 ```
 
 動かすユーザーの crontab に、次の 1 行が入ります（毎時 5 分に起動。すでにあれば、このフォルダーを指すように直すだけです）。手で入れる場合も、この形にしてください。

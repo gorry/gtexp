@@ -38,6 +38,8 @@ export async function runCheck(config: Config): Promise<boolean> {
   const script = resolve(process.argv[1] ?? '');
   const appDir = resolve(dirname(script), '..');
   console.log(`${PROFILE.title} ${PROFILE.version} の設置を確かめます（${appDir}）`);
+  // 直し方の案内（install.sh は、sudo できる管理者のアカウントで実行する。動かすユーザーには sudo の権限を持たせない）
+  const install = `管理者のアカウントで sudo sh ${join(appDir, 'deploy', 'install.sh')}`;
 
   // Node.js
   const [major, minor] = process.versions.node.split('.').map(Number);
@@ -88,7 +90,7 @@ export async function runCheck(config: Config): Promise<boolean> {
       accessSync(p, constants.W_OK);
       add('ok', `${label} ${p}（書き込める）`);
     } catch {
-      add('error', `${label} に書き込めない：${p}`, 'sudo sh deploy/install.sh で持ち主をそろえてください');
+      add('error', `${label} に書き込めない：${p}`, `${install} で持ち主をそろえてください`);
     }
   }
 
@@ -105,13 +107,13 @@ export async function runCheck(config: Config): Promise<boolean> {
   const unit = '/etc/systemd/system/gtexp.service';
   const rc = '/usr/local/etc/rc.d/gtexp';
   const def = [unit, rc].find((p) => existsSync(p));
-  if (!def) add('warn', 'サービスの定義が入っていない', 'sudo sh deploy/install.sh');
+  if (!def) add('warn', 'サービスの定義が入っていない', install);
   else {
     const text = readFileSync(def, 'utf8');
     // FreeBSD の /home は /usr/home へのリンクのことがあるので、実体のパスでも比べる
     const dirOk = def === unit ? [appDir, real(appDir)].some((d) => text.includes(`WorkingDirectory=${d}`)) : real(rcValue('gtexp_dir') || `/home/${rcValue('gtexp_user') || 'gtexp'}/gtexp`) === real(appDir);
-    if (!text.includes('dist/server.mjs')) add('error', `サービスの定義が前の版のまま（dist/server.mjs を動かしていない）：${def}`, 'sudo sh deploy/install.sh');
-    else if (!dirOk) add('warn', `サービスの定義が別のフォルダーを指している：${def}`, 'sudo sh deploy/install.sh');
+    if (!text.includes('dist/server.mjs')) add('error', `サービスの定義が前の版のまま（dist/server.mjs を動かしていない）：${def}`, install);
+    else if (!dirOk) add('warn', `サービスの定義が別のフォルダーを指している：${def}`, install);
     else add('ok', `サービスの定義 ${def}`);
   }
 
@@ -119,9 +121,9 @@ export async function runCheck(config: Config): Promise<boolean> {
   try {
     const res = await fetch(`http://${config.host === '0.0.0.0' ? '127.0.0.1' : config.host}:${config.port}/api/health`, { signal: AbortSignal.timeout(3000) });
     const h = res.ok ? ((await res.json()) as Health) : null;
-    if (!h?.builtAt) add('error', `動いているサーバーが前の版（${config.host}:${config.port}）`, 'sudo sh deploy/install.sh（サービスを入れ直して再起動します）');
+    if (!h?.builtAt) add('error', `動いているサーバーが前の版（${config.host}:${config.port}）`, `${install}（サービスを入れ直して再起動します）`);
     else if (Math.abs(Date.parse(h.builtAt) - statSync(script).mtimeMs) > 1000) {
-      add('error', `動いているサーバーが今のビルドと違う（${new Date(h.builtAt).toLocaleString()} のビルドで動いている）`, 'サービスを再起動してください（sudo sh deploy/install.sh でもよい）');
+      add('error', `動いているサーバーが今のビルドと違う（${new Date(h.builtAt).toLocaleString()} のビルドで動いている）`, `サービスを再起動してください（${install} でもよい）`);
     } else add('ok', `サーバーが動いている（${new Date(h.startedAt).toLocaleString()} から、今のビルドで）`);
   } catch {
     add('warn', `サーバーが動いていない（${config.host}:${config.port} に繋がらない）`, 'サービスを起動してください');
@@ -131,12 +133,12 @@ export async function runCheck(config: Config): Promise<boolean> {
   try {
     const tab = execFileSync('crontab', ['-l'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     const lines = tab.split('\n').filter((l) => l.includes('fetch-osm.sh') && !l.trim().startsWith('#'));
-    if (!lines.length) add('info', 'cron に fetch-osm の行がない（OpenStreetMap の住所を取らない）', '使うなら sudo sh deploy/install.sh --osm-cron');
+    if (!lines.length) add('info', 'cron に fetch-osm の行がない（OpenStreetMap の住所を取らない）', `使うなら ${install} --osm-cron`);
     else if (!lines.some((l) => l.includes(join(appDir, 'deploy', 'fetch-osm.sh')) || l.includes('$HOME/gtexp/deploy/fetch-osm.sh'))) {
-      add('warn', 'cron の fetch-osm の行が別のフォルダーを指している', 'sudo sh deploy/install.sh --osm-cron');
+      add('warn', 'cron の fetch-osm の行が別のフォルダーを指している', `${install} --osm-cron`);
     } else add('ok', 'cron に fetch-osm の行がある');
   } catch {
-    add('info', 'cron に fetch-osm の行がない（OpenStreetMap の住所を取らない）', '使うなら sudo sh deploy/install.sh --osm-cron');
+    add('info', 'cron に fetch-osm の行がない（OpenStreetMap の住所を取らない）', `使うなら ${install} --osm-cron`);
   }
 
   for (const r of results) {

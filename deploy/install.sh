@@ -1,7 +1,9 @@
 #!/bin/sh
 # gtexp をサービスとして設置する（設置のやり直し・更新後の再起動もこれで）。
-# リポジトリを展開したあと、管理者で実行する:
-#   sudo sh deploy/install.sh [--user 動かすユーザー] [--osm-cron]
+# リポジトリを展開したあと、sudo できる管理者のアカウントで実行する（どこから実行してもよい）:
+#   sudo sh /home/gtexp/gtexp/deploy/install.sh [--user 動かすユーザー] [--osm-cron]
+# 動かすユーザーには sudo の権限を持たせない。root で行うのは、サービスの定義を入れること・持ち主をそろえること・
+# 再起動・crontab の書き換えだけで、ビルドや確認は動かすユーザーとして行う。
 #     --user      動かすユーザー（省くと、展開したフォルダーの持ち主）
 #     --osm-cron  OpenStreetMap（Nominatim）から住所を少しずつ取る cron の行を入れる
 # 対応する OS は Linux（systemd）と FreeBSD（rc.d）。何度実行してもよい（今の状態を見て、足りないところだけ直す）。
@@ -16,15 +18,15 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --user) APP_USER="${2:-}"; shift 2 ;;
     --osm-cron) OSM_CRON=1; shift ;;
-    -h | --help) sed -n '2,10p' "$0"; exit 0 ;;
-    *) echo "知らない指定です: $1（sudo sh deploy/install.sh --help）" >&2; exit 1 ;;
+    -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+    *) echo "知らない指定です: $1（sudo sh $APP_DIR/deploy/install.sh --help）" >&2; exit 1 ;;
   esac
 done
 
 step() { echo "== $*"; }
 fail() { echo "エラー: $*" >&2; exit 1; }
 
-[ "$(id -u)" -eq 0 ] || fail "管理者で実行してください: sudo sh deploy/install.sh"
+[ "$(id -u)" -eq 0 ] || fail "sudo できる管理者のアカウントで実行してください: sudo sh $APP_DIR/deploy/install.sh"
 OS=$(uname -s)
 case "$OS" in Linux | FreeBSD) ;; *) fail "対応していない OS です: $OS" ;; esac
 
