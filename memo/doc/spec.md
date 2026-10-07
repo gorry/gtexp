@@ -320,6 +320,7 @@ URL の `#` 以降で画面を切り替える。
 
 ## 設定（gtexp.config.json）
 `host`、`port`、`dataDir`、`isjDir`（位置参照情報の zip。既定は dataDir/isj）、`takeoutSameM`（Takeout の保存した場所を同じ場所とみなす距離。既定 2m）、`takeoutNearM`（同じ場所の滞在先がない保存した場所を、いちばん近い滞在先 1 か所に付ける距離。既定 30m。`takeoutSameM` 以下なら付けない）、`takeoutLabelM`（ラベルの距離。既定 30m）、`osmEndpoint`（Nominatim）、`osmUserAgent`、`publicDir`、`sessionSecret`（空なら `data/session.key` を自動生成）、`sessionDays`、`mapsApiKey`、`mapId`、`tzOffsetMinutes`。
+起動時のログに、バージョン・Node.js の版・利用者の数と、秘密の値（項目名に secret / password / key / token / hash を含むもの。設定してあるかどうかだけ出す）以外の全部の設定を 1 項目 1 行で出す。設定ファイルに書いていない項目には「（既定）」を付け、設定ファイルにあっても使っていない項目（古い項目や書き間違い）を知らせる。publicDir に index.html がなければ注意を出す。
 相対パスは設定ファイルの場所が基準。設定ファイルは、環境変数 `GTEXP_CONFIG` → カレントの `gtexp.config.json` → `server.mjs` の一つ上（展開したフォルダー）→ `server.mjs` と同じフォルダーの順に探す。`publicDir` の既定は `./dist/public`。
 
 ## アプリ名・バージョン（Profile.ini）

@@ -7,7 +7,7 @@ import { createGzip, gunzipSync } from 'node:zlib';
 import { extname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { DatabaseSync } from 'node:sqlite';
-import { loadConfig, configPath, type Config } from './config';
+import { loadConfig, describeConfig, type Config } from './config';
 import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
 import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } from './users';
 import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
@@ -455,7 +455,12 @@ function serve(): void {
   // 取り込みは大きいファイルを受け取るので、タイムアウトを長めにする
   server.requestTimeout = 30 * 60_000;
   server.listen(config.port, config.host, () => {
-    console.log(`${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/ (config: ${configPath()}, data: ${config.dataDir})`);
+    console.log(`${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人）`);
+    // 秘密の値以外の設定を全部出しておく（どの設定で動いているかを、ログだけで確かめられるように）
+    for (const line of describeConfig(config)) console.log(line);
+    if (!existsSync(join(config.publicDir, 'index.html'))) {
+      console.warn(`注意: ${config.publicDir} に画面のファイル（index.html）がありません（npm run build を実行したか、publicDir が正しいか確かめてください）`);
+    }
   });
 }
 

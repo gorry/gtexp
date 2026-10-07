@@ -116,7 +116,7 @@ node dist/server.mjs user-add alice     # 利用者を追加する（パスワ�
 sudo cp /home/gtexp/gtexp/deploy/linux/gtexp.service /etc/systemd/system/gtexp.service
 sudo systemctl daemon-reload
 sudo systemctl enable --now gtexp
-journalctl -u gtexp -n 20           # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
+journalctl -u gtexp -n 30           # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
 ```
 
 **FreeBSD の場合**
@@ -128,12 +128,14 @@ sudo cp /home/gtexp/gtexp/deploy/freebsd/gtexp.rc /usr/local/etc/rc.d/gtexp
 sudo chmod 555 /usr/local/etc/rc.d/gtexp
 sudo sysrc gtexp_enable=YES gtexp_user=gtexp
 sudo service gtexp start
-tail ~gtexp/gtexp/log/gtexp.log     # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
+tail -n 30 ~gtexp/gtexp/log/gtexp.log   # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
 ```
 
 展開先が `/home/<ユーザー>/gtexp` 以外の場合は `sudo sysrc gtexp_dir=/path/to/gtexp` を、node の場所が異なる場合は `gtexp_node=` を加えます。
 
 ### ここまでの確認
+
+起動時のログには、実際に使っている設定が 1 項目 1 行で出ます（API キーなどの秘密の値は、設定してあるかどうかだけ）。設定ファイルに書いていない項目には「（既定）」が付き、使っていない項目（古い項目や書き間違い）や、画面のファイルが見つからないときは、その旨が出ます。思ったとおりに動かないときは、まずここを確かめてください。
 
 この時点で、gtexp はサーバーの中だけで `127.0.0.1:8787` を待ち受けています（設定の `host`・`port`）。サーバーの中から応答を確かめます。
 

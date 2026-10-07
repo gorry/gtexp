@@ -81,3 +81,33 @@ export function loadConfig(): Config {
   }
   return config;
 }
+
+/** 秘密の値とみなす項目（ログには、設定してあるかどうかだけを出す）。項目の名前で判定するので、新しい秘密の項目もこの形の名前にする */
+const SECRET_RE = /secret|password|key|token|hash/i;
+
+/**
+ * 起動時のログに出す、実際に使う設定の一覧（1 項目 1 行）。秘密の値は伏せる。
+ * 設定ファイルに書いていない項目には「（既定）」を付け、設定ファイルにあっても使っていない項目（古い項目や書き間違い）は知らせる
+ */
+export function describeConfig(config: Config): string[] {
+  const path = configPath();
+  let fileKeys: string[] = [];
+  try {
+    fileKeys = existsSync(path) ? Object.keys(JSON.parse(readFileSync(path, 'utf8'))) : [];
+  } catch {
+    /* 読めない設定ファイルは loadConfig の時点で止まっている */
+  }
+  const lines = [`設定ファイル: ${existsSync(path) ? path : `${path}（ないので既定値で動く）`}`];
+  for (const key of Object.keys(defaults) as (keyof Config)[]) {
+    const v = config[key];
+    const inFile = fileKeys.includes(key);
+    let shown: string;
+    if (key === 'sessionSecret' && !inFile) shown = '（dataDir の session.key を使う）';
+    else if (SECRET_RE.test(key)) shown = v ? '（設定済み）' : '（未設定）';
+    else shown = typeof v === 'string' ? v || '""' : JSON.stringify(v);
+    lines.push(`  ${key}: ${shown}${inFile || key === 'sessionSecret' ? '' : '（既定）'}`);
+  }
+  const unknown = fileKeys.filter((k) => !(k in defaults));
+  if (unknown.length) lines.push(`  使っていない項目（古い項目か書き間違い）: ${unknown.join(', ')}`);
+  return lines;
+}
