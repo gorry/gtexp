@@ -35,7 +35,7 @@ Linux（Debian / Ubuntu）を前提に説明し、FreeBSD で異なる点は「F
 
 | 置き場所（Linux） | 置き場所（FreeBSD） | 中身 |
 |---|---|---|
-| `/etc/systemd/system/gtexp.service` | `/usr/local/etc/rc.d/gtexp` | サービスの定義（`deploy/linux/gtexp.service` / `deploy/freebsd/gtexp.rc` のコピー） |
+| `/etc/systemd/system/gtexp.service` | `/usr/local/etc/rc.d/gtexp` | サービスの定義（`deploy/install.sh` が `deploy/linux/gtexp.service` / `deploy/freebsd/gtexp.rc` から作る） |
 | `/etc/apache2/sites-available/gtexp.conf` または `/etc/nginx/sites-available/gtexp` | `/usr/local/etc/apache24/Includes/gtexp.conf` または `/usr/local/etc/nginx/conf.d/gtexp.conf` | Web サーバーの設定（`deploy/linux/` / `deploy/freebsd/` の例を元に作成） |
 
 ## 1. 準備
@@ -62,31 +62,49 @@ sudo pkg install node24 npm-node24 git sqlite3
 sudo pw useradd gtexp -m -s /bin/sh
 ```
 
-## 2. 展開してビルドする
+## 2. 展開して設置する
 
-以降のコマンドは、特に記載がなければアプリを動かすユーザーで実行します（`sudo -iu gtexp` で切り替え）。
+リポジトリを、動かすユーザーで展開します（`sudo -iu gtexp` で切り替え）。
 
 ```sh
 git clone https://github.com/gorry/gtexp.git ~/gtexp
-cd ~/gtexp
-npm ci
-npm run build
 ```
 
-## 3. 設定ファイルを作り、利用者を追加する
+続けて、管理者で設置スクリプトを実行します。
+
+```sh
+cd ~gtexp/gtexp && sudo sh deploy/install.sh
+```
+
+`install.sh` は次のことを行います。何度実行しても構いません（今の状態を見て、足りないところだけ直します）。ファイルは消しません。
+
+- 動かすユーザーを決める（展開したフォルダーの持ち主。`--user <名前>` で指定もできる）
+- Node.js の版を確かめる（`node` が見つからないときは `NODE=/path/to/node` を付けて実行）
+- フォルダーの持ち主を、動かすユーザーにそろえる
+- まだビルドしていなければビルドする（`npm ci && npm run build`）
+- 設定ファイルがなければ、例（`deploy/gtexp.config.example.json`）から作る。ログのフォルダーを作る
+- サービスを入れて（再）起動する（Linux：`/etc/systemd/system/gtexp.service` を、展開した場所・ユーザー・node のパスを埋めて作る。FreeBSD：`/usr/local/etc/rc.d/gtexp` を置き、`sysrc` で設定する）
+- cron の fetch-osm の行が別の場所を指していれば直す（`--osm-cron` を付けると、なければ入れる。「10」を参照）
+- 最後に設置を確かめる（`node dist/server.mjs check`）
+
+Web サーバー（Apache / nginx）の設定は、ほかのサイトとの兼ね合いがあるので入れません（「5」で行います）。
+
+## 3. 設定ファイルを書き、利用者を追加する
+
+`install.sh` が作った設定ファイルに API キーを書き、利用者を追加します。以降のコマンドは、特に記載がなければアプリを動かすユーザーで実行します。
 
 ```sh
 cd ~/gtexp
-cp deploy/gtexp.config.example.json gtexp.config.json
-chmod 600 gtexp.config.json
-vi gtexp.config.json                    # mapsApiKey を書く
+vi gtexp.config.json                    # mapsApiKey を書く（「6」を参照）
 node dist/server.mjs user-add alice     # 利用者を追加する（パスワードを 2 回聞かれる）
 ```
+
+設定を変えたら、サービスを再起動します（`sudo systemctl restart gtexp`。FreeBSD は `sudo service gtexp restart`。`sudo sh deploy/install.sh` でもよい）。
 
 | 項目 | 内容 |
 |---|---|
 | `dataDir` | DB と取り込んだ元ファイルの置き場所。設定ファイルからの相対パスで、既定は `./data` |
-| `publicDir` | 画面のファイルの置き場所。既定は `./dist/public` |
+| `publicDir` | 画面のファイルの置き場所。既定は `./dist/public`（ふつうは変えない） |
 | `mapsApiKey` | Maps JavaScript API のキー（「6」を参照）。空のままでも地図以外は動作する |
 | `mapId` | 地図のスタイル ID。作成していなければ `DEMO_MAP_ID` のままでよい |
 | `tzOffsetMinutes` | 日付の区切りに使う時差（分）。日本は 540 |
@@ -108,34 +126,26 @@ node dist/server.mjs user-add alice     # 利用者を追加する（パスワ�
 利用者の記録を扱うコマンド（`import`・`import-takeout`・`assign-areas`）は、利用者が 2 人以上いる場合は `--user <名前>` を付けます。
 `fetch-osm`（cron）は、全員の分を順に回しながら取得します。
 
-## 4. 常駐させる
+## 4. 設置を確かめる
 
-`deploy/linux/gtexp.service` の `User`・`WorkingDirectory`・`GTEXP_CONFIG`・node のパス（`command -v node` で確認）を環境に合わせて書き換えてから、管理者で実行します。
-
-```sh
-sudo cp /home/gtexp/gtexp/deploy/linux/gtexp.service /etc/systemd/system/gtexp.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now gtexp
-journalctl -u gtexp -n 30           # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
-```
-
-**FreeBSD の場合**
-
-起動スクリプトは root で実行されるため、リンクではなくコピーを置きます。
+設置の状態は、いつでも次のコマンドで確かめられます（`install.sh` と、管理者で実行した `update.sh` の最後にも実行されます）。
 
 ```sh
-sudo cp /home/gtexp/gtexp/deploy/freebsd/gtexp.rc /usr/local/etc/rc.d/gtexp
-sudo chmod 555 /usr/local/etc/rc.d/gtexp
-sudo sysrc gtexp_enable=YES gtexp_user=gtexp
-sudo service gtexp start
-tail -n 30 ~gtexp/gtexp/log/gtexp.log   # 「gtexp <バージョン>: http://127.0.0.1:8787/ ...」と出れば起動している
+cd ~/gtexp && node dist/server.mjs check
 ```
 
-展開先が `/home/<ユーザー>/gtexp` 以外の場合は `sudo sysrc gtexp_dir=/path/to/gtexp` を、node の場所が異なる場合は `gtexp_node=` を加えます。
+Node.js の版、ビルドがソースより古くないか、設定ファイル（使っていない項目がないか）、画面のファイル、データのフォルダーに書き込めるか、利用者がいるか、サービスの定義が今の置き場所の `dist/server.mjs` を動かしているか、動いているサーバーが今のビルドか、cron の行を確かめ、`[要対応]`・`[注意]`・`[情報]` を直し方と一緒に出します。前の置き方の名残りのファイルなど、動作に影響しないものは `[情報]` として知らせるだけです。
 
-### ここまでの確認
+サービスのログ（Linux：`journalctl -u gtexp -n 30`、FreeBSD：`tail -n 30 ~gtexp/gtexp/log/gtexp.log`）には、起動の日時・バージョン・ビルドの日時と、実際に使っている設定が 1 項目 1 行で出ます（API キーなどの秘密の値は、設定してあるかどうかだけ）。設定ファイルに書いていない項目には「（既定）」が付き、使っていない項目や、画面のファイルが見つからないときは、その旨が出ます。
 
-起動時のログには、実際に使っている設定が 1 項目 1 行で出ます（API キーなどの秘密の値は、設定してあるかどうかだけ）。設定ファイルに書いていない項目には「（既定）」が付き、使っていない項目（古い項目や書き間違い）や、画面のファイルが見つからないときは、その旨が出ます。思ったとおりに動かないときは、まずここを確かめてください。
+### 手で入れる場合
+
+`install.sh` を使わずにサービスを入れる場合の手順です。
+
+- Linux：`deploy/linux/gtexp.service` の `User`・`Group`・`WorkingDirectory`・`GTEXP_CONFIG`・node のパス（`command -v node` で確認）を書き換えて `/etc/systemd/system/gtexp.service` に置き、`sudo systemctl daemon-reload && sudo systemctl enable --now gtexp`
+- FreeBSD：`deploy/freebsd/gtexp.rc` を `/usr/local/etc/rc.d/gtexp` にコピーし（root で実行されるため、リンクではなくコピー）、`sudo chmod 555 /usr/local/etc/rc.d/gtexp`、`sudo sysrc gtexp_enable=YES gtexp_user=gtexp`（展開先が `/home/<ユーザー>/gtexp` 以外なら `gtexp_dir=`、node の場所が異なるなら `gtexp_node=` も）、`sudo service gtexp start`
+
+### Web サーバーの前に
 
 この時点で、gtexp はサーバーの中だけで `127.0.0.1:8787` を待ち受けています（設定の `host`・`port`）。サーバーの中から応答を確かめます。
 
@@ -234,7 +244,7 @@ FreeBSD では、証明書の置き場所が `/usr/local/etc/letsencrypt/live/` 
 
 | 症状 | 確かめること |
 |---|---|
-| 502 / 503 が返る | gtexp が動いているか（「ここまでの確認」の curl）、設定例の中継先のポートが設定の `port` と合っているか |
+| 502 / 503 が返る | gtexp が動いているか（「4」の check や curl）、設定例の中継先のポートが設定の `port` と合っているか |
 | ログインしても、すぐログイン画面に戻る | `https://` で開いているか（Secure を付けた Cookie は、HTTP のページではブラウザが保存しない） |
 | 取り込みが 413 で失敗する | リクエストの大きさの上限（Apache は `LimitRequestBody`、nginx は `client_max_body_size`） |
 | 取り込みが途中で 504 になる | 待ち時間（Apache は `ProxyPass` の `timeout`、nginx は `proxy_read_timeout`） |
@@ -270,9 +280,11 @@ cd ~/gtexp && node --max-old-space-size=2048 dist/server.mjs import /path/to/tim
 ## 8. 更新する
 
 ```sh
-cd ~/gtexp && sh deploy/update.sh   # git pull → npm ci → npm run build
-sudo systemctl restart gtexp        # FreeBSD: sudo service gtexp restart
+cd ~gtexp/gtexp && sudo sh deploy/update.sh
 ```
+
+更新とビルド（`git pull` → `npm ci` → `npm run build`）は、展開したフォルダーの持ち主で行います。そのあと `install.sh` を続けて実行し、サービスの定義を今の版に合わせて再起動し、設置を確かめます。
+動かすユーザーで `sh deploy/update.sh` を実行すると、更新・ビルドと確認だけを行います（再起動は別に行ってください）。
 
 ## 9. 住所のデータを入れる（任意）
 
@@ -314,12 +326,16 @@ sh ~/gtexp/deploy/make-osm-poi.sh
 cron で毎時、まだ調べていない地点をよく行く順に最大 150 か所、Nominatim に問い合わせて住所を蓄積します（15〜25 秒に 1 回の問い合わせで、公開サーバーの利用規約の範囲内です）。海外の地点にも住所が付きます。
 
 ```sh
-mkdir -p ~/gtexp/log
-crontab -e
-# 次の 1 行を追加する（毎時 5 分に起動）
-5 * * * * sh $HOME/gtexp/deploy/fetch-osm.sh >> $HOME/gtexp/log/osm.log 2>&1
+cd ~gtexp/gtexp && sudo sh deploy/install.sh --osm-cron
 ```
 
+動かすユーザーの crontab に、次の 1 行が入ります（毎時 5 分に起動。すでにあれば、このフォルダーを指すように直すだけです）。手で入れる場合も、この形にしてください。
+
+```
+5 * * * * sh /home/gtexp/gtexp/deploy/fetch-osm.sh >> /home/gtexp/gtexp/log/osm.log 2>&1
+```
+
+ほかのユーザーの crontab にも fetch-osm の行があると、問い合わせが重なって利用規約の間隔を超えるため、`install.sh` が知らせます。
 node が `/usr/local/bin`・`/usr/bin` 以外にある場合（nvm など）は、行の先頭に `NODE=/path/to/node` を付けます。
 進み具合は、画面の「取り込み」の「施設名・住所（OpenStreetMap）」と `~/gtexp/log/osm.log` で確認できます。
 1 地点だけ試しに問い合わせる場合は `cd ~/gtexp && node dist/server.mjs osm-lookup 35.681236 139.767125` を実行します（東京駅。保存はしません）。

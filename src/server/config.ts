@@ -91,12 +91,7 @@ const SECRET_RE = /secret|password|key|token|hash/i;
  */
 export function describeConfig(config: Config): string[] {
   const path = configPath();
-  let fileKeys: string[] = [];
-  try {
-    fileKeys = existsSync(path) ? Object.keys(JSON.parse(readFileSync(path, 'utf8'))) : [];
-  } catch {
-    /* 読めない設定ファイルは loadConfig の時点で止まっている */
-  }
+  const fileKeys = configFileKeys();
   const lines = [`設定ファイル: ${existsSync(path) ? path : `${path}（ないので既定値で動く）`}`];
   for (const key of Object.keys(defaults) as (keyof Config)[]) {
     const v = config[key];
@@ -107,7 +102,22 @@ export function describeConfig(config: Config): string[] {
     else shown = typeof v === 'string' ? v || '""' : JSON.stringify(v);
     lines.push(`  ${key}: ${shown}${inFile || key === 'sessionSecret' ? '' : '（既定）'}`);
   }
-  const unknown = fileKeys.filter((k) => !(k in defaults));
+  const unknown = unknownConfigKeys();
   if (unknown.length) lines.push(`  使っていない項目（古い項目か書き間違い）: ${unknown.join(', ')}`);
   return lines;
+}
+
+/** 設定ファイルに書いてある項目の名前 */
+function configFileKeys(): string[] {
+  const path = configPath();
+  try {
+    return existsSync(path) ? Object.keys(JSON.parse(readFileSync(path, 'utf8'))) : [];
+  } catch {
+    return []; // 読めない設定ファイルは loadConfig の時点で止まっている
+  }
+}
+
+/** 設定ファイルにあっても使っていない項目（古い項目や書き間違い） */
+export function unknownConfigKeys(): string[] {
+  return configFileKeys().filter((k) => !(k in defaults));
 }

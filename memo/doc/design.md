@@ -81,6 +81,7 @@ G Timeline Explorer（略名 gtexp）の方針と、そう決めた理由。機�
 - 手元でビルドして送る形は、手順が増え、送り漏れや古いファイルの残りが起きやすいので採らない
 - 主な対象は Linux（systemd、Apache / nginx）。FreeBSD（rc.d、Apache / nginx）でも動かせるよう、OS ごとの設定例を `deploy/linux/`・`deploy/freebsd/` に分け、共通のスクリプトは OS を問わず動く sh で書く
 - 外に置くのはサービスの定義と Web サーバーの設定だけ。手順は [deploy/README.md](../../deploy/README.md)
+- サービスの定義・持ち主・cron の場所など、一度だけ行う手作業は忘れやすく、間違えても動いてしまって気づきにくいので、`deploy/install.sh`（管理者で実行。何度実行しても同じ結果になり、ファイルは消さない）にまとめる。設置の状態は `check` コマンドで確かめ、動いているサーバーが今のビルドかも調べる
 
 ## アプリ名
 **G Timeline Explorer**（略名 gtexp）。画面に出る名前は正式名、URL・ファイル名・サービス名などは略名。

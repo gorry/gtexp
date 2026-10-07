@@ -20,6 +20,10 @@ import { buildPoiKeys, listEntries, listNames } from './lists';
 import { CONTENT_TYPES, EXPORT_FORMATS, render, type ExportData, type ExportFormat } from './exporter';
 import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget } from '../shared/types';
 import { PROFILE } from '../shared/profile.gen';
+import { builtAt, runCheck, type Health } from './check';
+
+/** サーバーを起動した日時 */
+const startedAt = new Date().toISOString();
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -320,6 +324,12 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   const user = loggedInUser(req, config.sessionSecret, (name) => getUser(shared, name)?.sessionKey ?? null);
+  if (path === '/api/health') {
+    // 設置の確認（check コマンド）用。ログインは要らない。版とビルドの日時だけを返す
+    const body: Health = { version: PROFILE.version, startedAt, builtAt: builtAt() };
+    sendJson(res, 200, body);
+    return;
+  }
   if (path === '/api/me') {
     sendJson(res, 200, user ? { loggedIn: true, user } : { loggedIn: false });
     return;
@@ -455,7 +465,7 @@ function serve(): void {
   // 取り込みは大きいファイルを受け取るので、タイムアウトを長めにする
   server.requestTimeout = 30 * 60_000;
   server.listen(config.port, config.host, () => {
-    console.log(`${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人）`);
+    console.log(`${startedAt} ${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人、ビルド ${builtAt()}）`);
     // 秘密の値以外の設定を全部出しておく（どの設定で動いているかを、ログだけで確かめられるように）
     for (const line of describeConfig(config)) console.log(line);
     if (!existsSync(join(config.publicDir, 'index.html'))) {
@@ -513,6 +523,11 @@ async function main(): Promise<void> {
     case 'serve':
       serve();
       break;
+    case 'check': {
+      // 設置の確認。要対応があれば終了コード 1
+      if (!(await runCheck(loadConfig()))) process.exitCode = 1;
+      break;
+    }
     case 'user-add': {
       // 利用者を足す。パスワードは聞く
       const name = args[0] ?? '';
@@ -643,6 +658,7 @@ ${PROFILE.copyright}
 
 使い方（[--user 名前] は、利用者が 1 人だけなら省ける）:
   serve                  サーバーを起動する
+  check                  設置を確かめる（サービスの定義・ビルド・画面のファイル・設定・持ち主・動いているサーバーの版など）
   user-add <名前>        利用者を足す（パスワードを聞く）。名前は英小文字・数字・_・- で 32 文字まで
   user-passwd <名前>     パスワードを変える（その利用者のログイン中の端末はすべてログアウトされる）
   user-del <名前>        利用者を消す（ログインできなくするだけ。記録のフォルダー data/users/<名前> は残す）

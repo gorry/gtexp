@@ -45,7 +45,7 @@ http://localhost:5173/ を開きます（API リクエストは 8787 にプロ�
 | `src/server/` | Node.js のサーバー。`node:sqlite` を使い、外部ライブラリなしで動く |
 | `src/client/` | フロントエンド実装（Preact + Vite） |
 | `src/shared/` | サーバーと画面で共通の型 |
-| `deploy/` | サーバーへの設置手順、更新・cron 用スクリプト、設定例（`linux/`：systemd・Apache・nginx、`freebsd/`：rc.d・Apache・nginx） |
+| `deploy/` | サーバーへの設置手順、設置・更新・cron 用スクリプト（`install.sh`・`update.sh` など）、設定例（`linux/`：systemd・Apache・nginx、`freebsd/`：rc.d・Apache・nginx） |
 | `tools/` | アイコン画像の生成、Profile.ini を読むスクリプト |
 | `Profile.ini` | アプリ名・バージョン・著作権表示などの定数定義 |
 | `memo/doc/` | 設計方針・仕様・元データの形式などの文書 |

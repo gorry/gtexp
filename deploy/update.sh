@@ -1,12 +1,24 @@
 #!/bin/sh
-# 最新版に更新してビルドする。リポジトリを展開したフォルダーの中のどこからでも実行できる:
-#   sh deploy/update.sh
-# 終わったらサービスを再起動する（Linux: sudo systemctl restart gtexp / FreeBSD: sudo service gtexp restart）。
-# 設定（gtexp.config.json）・データ（data/）・ログ（log/）は git の管理外なので、更新しても変わらない。
-cd "$(dirname "$0")/.." || exit 1
-set -e
-git pull --ff-only
+# 最新版に更新してビルドする。リポジトリを展開したフォルダーで実行する:
+#   sudo sh deploy/update.sh [install.sh への指定]   … 更新・ビルドのあと、install.sh でサービスを入れ直して再起動し、確かめる（おすすめ）
+#   sh deploy/update.sh                             … 動かすユーザーで、更新・ビルドと確認だけ（再起動は別に行う）
+# 設定（gtexp.config.json）・データ（data/）・ログ（log/）は Git の管理対象外なので、更新しても変わらない。
+set -eu
+cd "$(dirname "$0")/.."
+APP_DIR=$(pwd -P)
+PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
+export PATH
 # ビルドに devDependencies が要るので、NODE_ENV=production の環境でも入れる
-npm ci --include=dev
-npm run build
-echo "ビルドしました。サービスを再起動してください（Linux: sudo systemctl restart gtexp / FreeBSD: sudo service gtexp restart）"
+UPDATE="git pull --ff-only && npm ci --include=dev && npm run build"
+
+if [ "$(id -u)" -eq 0 ]; then
+  # 管理者で実行したときは、更新とビルドは展開したフォルダーの持ち主で行う（root の持ち物のファイルを作らない）
+  if [ "$(uname -s)" = FreeBSD ]; then OWNER=$(stat -f %Su "$APP_DIR"); else OWNER=$(stat -c %U "$APP_DIR"); fi
+  [ "$OWNER" != root ] || { echo "エラー: 展開したフォルダーが root の持ち物です。動かすユーザーの持ち物にしてください" >&2; exit 1; }
+  HOME=$(eval echo "~$OWNER") su -m "$OWNER" -c "cd '$APP_DIR' && $UPDATE"
+  exec sh deploy/install.sh "$@"
+fi
+
+sh -c "$UPDATE"
+node dist/server.mjs check || true
+echo "ビルドしました。サービスを再起動してください（sudo sh deploy/install.sh か、Linux: sudo systemctl restart gtexp / FreeBSD: sudo service gtexp restart）"

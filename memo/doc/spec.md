@@ -224,13 +224,14 @@ URL の `#` 以降で画面を切り替える。
 - Google Earth：`https://earth.google.com/web/search/緯度,経度`
 
 ## API
-ログイン関係（`/api/login`、`/api/logout`、`/api/me`）以外はログインが必要（Cookie `gtexp_session`）。ログインした利用者の記録だけを扱う（ほかの利用者の記録には届かない）。
+ログイン関係（`/api/login`、`/api/logout`、`/api/me`）と `/api/health` 以外はログインが必要（Cookie `gtexp_session`）。ログインした利用者の記録だけを扱う（ほかの利用者の記録には届かない）。
 
 | メソッドとパス | 内容 |
 |---|---|
 | `POST /api/login` | `{user, password}` → Cookie を発行し `{loggedIn, user}` を返す。利用者名は大文字・小文字を区別しない（小文字にそろえる） |
 | `POST /api/logout` | Cookie を消す |
 | `GET /api/me` | `{loggedIn, user}` |
+| `GET /api/health` | ログイン不要。`{version, startedAt, builtAt}`（動いているサーバーの版・起動した日時・ビルドの日時。check コマンドが今のビルドと比べる） |
 | `GET /api/config` | `{mapsApiKey, mapId, tzOffsetMinutes}` |
 | `POST /api/import` | 本文がファイルそのもの（gzip 可、先頭2バイトで判定）。ヘッダー `X-File-Name` に元のファイル名（URL エンコード）。利用者ごとに同時に1件まで |
 | `POST /api/takeout` | Google Takeout の zip（multipart/form-data の `file`、複数可、合わせて 200MB まで）を入れ、地点への割り当てまで行う → 置き換えた種類・件数・保存リストの名前・割り当ての結果。zip に入っていた種類だけ置き換わる |
@@ -305,6 +306,7 @@ URL の `#` 以降で画面を切り替える。
 | コマンド | 内容 |
 |---|---|
 | `serve` | サーバーを起動 |
+| `check` | 設置を確かめる（Node.js の版、ビルドの新しさ、設定ファイル、画面のファイル、データのフォルダーに書き込めるか、利用者、サービスの定義、動いているサーバーの版、cron）。要対応があれば終了コード 1 |
 | `user-add <名前>` | 利用者を足す（パスワードを 2 回聞く） |
 | `user-passwd <名前>` | パスワードを変える（その利用者のログイン中の端末はログアウトされる） |
 | `user-del <名前>` | 利用者を消す（ログインできなくするだけ。記録のフォルダーは残す） |
@@ -320,7 +322,7 @@ URL の `#` 以降で画面を切り替える。
 
 ## 設定（gtexp.config.json）
 `host`、`port`、`dataDir`、`isjDir`（位置参照情報の zip。既定は dataDir/isj）、`takeoutSameM`（Takeout の保存した場所を同じ場所とみなす距離。既定 2m）、`takeoutNearM`（同じ場所の滞在先がない保存した場所を、いちばん近い滞在先 1 か所に付ける距離。既定 30m。`takeoutSameM` 以下なら付けない）、`takeoutLabelM`（ラベルの距離。既定 30m）、`osmEndpoint`（Nominatim）、`osmUserAgent`、`publicDir`、`sessionSecret`（空なら `data/session.key` を自動生成）、`sessionDays`、`mapsApiKey`、`mapId`、`tzOffsetMinutes`。
-起動時のログに、バージョン・Node.js の版・利用者の数と、秘密の値（項目名に secret / password / key / token / hash を含むもの。設定してあるかどうかだけ出す）以外の全部の設定を 1 項目 1 行で出す。設定ファイルに書いていない項目には「（既定）」を付け、設定ファイルにあっても使っていない項目（古い項目や書き間違い）を知らせる。publicDir に index.html がなければ注意を出す。
+起動時のログに、起動の日時・バージョン・Node.js の版・利用者の数・ビルドの日時と、秘密の値（項目名に secret / password / key / token / hash を含むもの。設定してあるかどうかだけ出す）以外の全部の設定を 1 項目 1 行で出す。設定ファイルに書いていない項目には「（既定）」を付け、設定ファイルにあっても使っていない項目（古い項目や書き間違い）を知らせる。publicDir に index.html がなければ注意を出す。
 相対パスは設定ファイルの場所が基準。設定ファイルは、環境変数 `GTEXP_CONFIG` → カレントの `gtexp.config.json` → `server.mjs` の一つ上（展開したフォルダー）→ `server.mjs` と同じフォルダーの順に探す。`publicDir` の既定は `./dist/public`。
 
 ## アプリ名・バージョン（Profile.ini）
