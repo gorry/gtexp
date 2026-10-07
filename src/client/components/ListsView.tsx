@@ -238,7 +238,7 @@ function ListMap({ config, list, entries, focus, onView }: {
         scale: 0.8,
       });
       const marker = new google.maps.marker.AdvancedMarkerElement({ map, position: { lat: e.lat!, lng: e.lng! }, content: pin, title: e.title, gmpClickable: true });
-      marker.addListener('gmp-click', () => openInfo(e, marker));
+      marker.addEventListener('gmp-click', () => openInfo(e, marker));
       markers.current.set(e, marker);
     }
     if (!restored.current && pins.length) fitTo(map, pins.map((e) => ({ lat: e.lat!, lng: e.lng! })), 15);

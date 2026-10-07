@@ -88,7 +88,7 @@ export function MapView({ apiKey, mapId, visits, activities, path, selectedId, o
         title: visitName(v),
         gmpClickable: true,
       });
-      marker.addListener('gmp-click', () => onSelect(v.id));
+      marker.addEventListener('gmp-click', () => onSelect(v.id));
       o.markers.set(v.id, marker);
       points.push({ lat: v.lat, lng: v.lng });
     });

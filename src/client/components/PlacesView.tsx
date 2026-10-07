@@ -333,7 +333,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
         gmpClickable: true,
         zIndex: MAX_PINS - i,
       });
-      marker.addListener('gmp-click', () => onSelect(p.placeId));
+      marker.addEventListener('gmp-click', () => onSelect(p.placeId));
       markers.current.set(p.placeId, marker);
       pinEls.current.set(p.placeId, pin);
     });

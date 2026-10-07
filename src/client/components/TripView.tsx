@@ -168,7 +168,7 @@ function TripMap({ config, visits, path, selected, onSelect }: {
         gmpClickable: true,
         content: new google.maps.marker.PinElement({ background: PIN_COLORS[v.semanticType] ?? PIN_DEFAULT, borderColor: '#0000004d', glyphColor: '#fff', scale: 0.7 }),
       });
-      marker.addListener('gmp-click', () => onSelect(v.id));
+      marker.addEventListener('gmp-click', () => onSelect(v.id));
       markers.current.set(v.id, marker);
     });
     fitTo(map, [...path.map(([, lat, lng]) => ({ lat, lng })), ...visits.map((v) => ({ lat: v.lat, lng: v.lng }))], 15);
