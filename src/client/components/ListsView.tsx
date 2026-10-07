@@ -19,7 +19,7 @@ function placeUrl(placeId: string): string {
 
 /** 位置の出どころの説明 */
 function geoLabel(e: ListEntry): string {
-  if (e.geo === 'takeout') return '';
+  if (e.geo === 'takeout' || e.geo === 'mymap') return '';
   if (e.geo === 'pin') return '地図のピン';
   if (e.geo === 'osm') return `位置は OSM「${e.osmName}」から`;
   return e.candidates ? `位置不明（OSM に同じ名前が ${e.candidates} か所）` : '位置不明';
@@ -95,13 +95,22 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
     <div class="split-view">
       <aside class="side" ref={sideRef} onScroll={() => remember()}>
         <div class="filters">
-          <select value={list} onChange={(e) => setList(e.currentTarget.value)} aria-label="保存リスト">
-            <option value="">保存リストを選ぶ</option>
-            {lists.map((l) => (
-              <option value={l.list}>
-                {l.list}（{l.count.toLocaleString()}）
-              </option>
-            ))}
+          <select value={list} onChange={(e) => setList(e.currentTarget.value)} aria-label="保存リスト・マイマップ">
+            <option value="">保存リスト・マイマップを選ぶ</option>
+            {(['list', 'mymap'] as const).map(
+              (kind) =>
+                lists.some((l) => l.kind === kind) && (
+                  <optgroup label={kind === 'list' ? '保存リスト' : 'マイマップ'}>
+                    {lists
+                      .filter((l) => l.kind === kind)
+                      .map((l) => (
+                        <option value={l.key}>
+                          {l.list}（{l.count.toLocaleString()}）
+                        </option>
+                      ))}
+                  </optgroup>
+                ),
+            )}
           </select>
           <div class="chips">
             {(Object.keys(FILTER_LABELS) as Filter[]).map((f) => (
@@ -113,7 +122,7 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
           </div>
         </div>
         {error && <p class="error">{error}</p>}
-        {!lists.length && !error && <p class="muted note">Takeout の保存リストがまだ入っていません（取り込みの画面の「Google Takeout」を参照）。</p>}
+        {!lists.length && !error && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送ってください）。</p>}
         {loading && <p class="muted result-count">読み込んでいます…</p>}
         {data && (
           <p class="muted result-count">
@@ -126,8 +135,8 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
         {data && !data.osm.keys && (
           <p class="muted note">
             {data.osm.pois
-              ? 'OSM の施設を名前で探す索引がまだないので、Takeout に位置のない店は位置不明になります（サーバーで node dist/server.mjs osm-poi-keys）。'
-              : 'OSM の施設のデータがないので、Takeout に位置のない店は位置不明になります（deploy/make-osm-poi.sh）。'}
+              ? 'OSM の施設を名前で探す索引がまだないので、Takeout に位置のない店は位置不明になります（サーバーの管理者が作ります）。'
+              : 'OSM の施設のデータがサーバーにないので、Takeout に位置のない店は位置不明になります（サーバーの管理者が入れます）。'}
           </p>
         )}
         <ol class="place-list">

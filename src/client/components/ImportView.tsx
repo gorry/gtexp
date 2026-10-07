@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { ImportRecord, SummaryResponse } from '../../shared/types';
-import { api, uploadExport, type ImportResult, type UploadStage } from '../api';
+import { PROFILE } from '../../shared/profile.gen';
+import type { ImportRecord, SummaryResponse, TakeoutImportResult } from '../../shared/types';
+import { api, uploadExport, uploadTakeout, type ImportResult, type UploadStage } from '../api';
 import { assignSummary } from '../format';
 import { clearCalendarCache } from './Calendar';
 import { clearYearsCache } from './PeriodPicker';
@@ -19,6 +20,38 @@ async function takeSharedFile(): Promise<{ blob: Blob; name: string } | null> {
   return { blob: await res.blob(), name: decodeURIComponent(res.headers.get('X-File-Name') ?? 'shared.json') };
 }
 
+/** 管理者向けの説明（位置参照情報・OpenStreetMap などのサーバーのデータは、この画面ではなく管理者が入れる） */
+const ADMIN_DOC_URL = PROFILE.projectUrl ? `${PROFILE.projectUrl}/blob/main/deploy/README.md` : '';
+
+function AdminNote({ text }: { text: string }) {
+  return (
+    <p class="muted">
+      {text}
+      {ADMIN_DOC_URL && (
+        <>
+          （管理者向けの説明：
+          <a href={ADMIN_DOC_URL} target="_blank" rel="noopener">
+            設置手順
+          </a>
+          ）
+        </>
+      )}
+      。
+    </p>
+  );
+}
+
+/** Takeout の zip か（それ以外はタイムラインのエクスポートとして送る） */
+const isZip = (name: string, type: string) => /\.zip$/i.test(name) || /zip/.test(type);
+
+const TAKEOUT_KIND_LABELS: Record<TakeoutImportResult['replaced'][number], string> = {
+  saved: '保存した場所',
+  labeled: 'ラベルを付けた場所',
+  lists: '保存リスト',
+  reviews: 'クチコミ',
+  mymaps: 'マイマップ',
+};
+
 const STAGE_LABELS: Record<UploadStage, string> = {
   compress: '圧縮しています…',
   upload: '送信しています…',
@@ -30,6 +63,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   const [history, setHistory] = useState<ImportRecord[]>([]);
   const [progress, setProgress] = useState<{ stage: UploadStage; ratio: number } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [takeoutResult, setTakeoutResult] = useState<TakeoutImportResult | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState('');
   const [error, setError] = useState(query.get('share') === 'failed' ? '共有されたファイルを受け取れませんでした。下のボタンからファイルを選んでください。' : '');
@@ -39,27 +73,39 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
     api.imports().then(setHistory).catch(() => {});
   };
 
-  const upload = async (blob: Blob, name: string) => {
+  /**
+   * 選んだファイルを送る。zip は Google Takeout としてまとめて 1 回で（書き出しが複数の zip に分かれていることがあるため）、
+   * それ以外はタイムラインのエクスポートとして 1 つずつ送る
+   */
+  const upload = async (files: { blob: Blob; name: string }[]) => {
     setError('');
     setResult(null);
+    setTakeoutResult(null);
+    const onProgress = (stage: UploadStage, ratio: number) => setProgress({ stage, ratio });
+    const zips = files.filter((f) => isZip(f.name, f.blob.type));
+    const timelines = files.filter((f) => !isZip(f.name, f.blob.type));
     try {
-      const r = await uploadExport(blob, name, (stage, ratio) => setProgress({ stage, ratio }));
-      setResult(r);
-      clearCalendarCache();
-      clearYearsCache();
-      reload();
-      onImported();
+      for (const f of timelines) {
+        setResult(await uploadExport(f.blob, f.name, onProgress));
+        clearCalendarCache();
+        clearYearsCache();
+        onImported();
+      }
+      if (zips.length) {
+        setTakeoutResult(await uploadTakeout(zips.map((f) => f.blob), zips.map((f) => f.name), onProgress));
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setProgress(null);
+      reload();
     }
   };
 
   useEffect(() => {
     reload();
     if (query.get('shared') === '1') {
-      takeSharedFile().then((f) => f && upload(f.blob, f.name));
+      takeSharedFile().then((f) => f && upload([f]));
     }
   }, []);
 
@@ -81,9 +127,9 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
 
   const onFile = (e: Event) => {
     const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
+    const files = [...(input.files ?? [])].map((file) => ({ blob: file as Blob, name: file.name }));
     input.value = '';
-    if (file) upload(file, file.name);
+    if (files.length) upload(files);
   };
 
   return (
@@ -107,10 +153,18 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
       )}
 
       <section class="card">
-        <h3>エクスポートしたファイルを送る</h3>
+        <h3>ファイルを送る</h3>
+        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout の書き出し（.zip）を送れます。両方を一度に選んでもかまいません。</p>
         <label class={`file-button${progress ? ' disabled' : ''}`}>
           ファイルを選ぶ
-          <input type="file" accept=".json,.gz,application/json,application/gzip" onChange={onFile} disabled={!!progress} hidden />
+          <input
+            type="file"
+            multiple
+            accept=".json,.gz,.zip,application/json,application/gzip,application/zip"
+            onChange={onFile}
+            disabled={!!progress}
+            hidden
+          />
         </label>
         {progress && (
           <div class="progress">
@@ -130,9 +184,25 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             )}
           </p>
         )}
+        {takeoutResult && (
+          <p class="success">
+            Google Takeout を取り込みました（{takeoutResult.replaced.map((k) => TAKEOUT_KIND_LABELS[k]).join('・')}を置き換え
+            {takeoutResult.replaced.length < 5 && '。zip に入っていなかった種類は前のまま'}）
+            <br />
+            保存した場所 {takeoutResult.saved.toLocaleString()} 件・ラベルを付けた場所 {takeoutResult.labeled.toLocaleString()} 件・
+            保存リスト {takeoutResult.lists.length} 個（{takeoutResult.listEntries.toLocaleString()} 件）・クチコミ {takeoutResult.reviews.toLocaleString()} 件・
+            マイマップ {takeoutResult.mymaps} 個（地点 {takeoutResult.mymapPoints.toLocaleString()} か所）
+            {takeoutResult.addresses.checked > 0 && (
+              <>
+                <br />
+                {assignSummary(takeoutResult.addresses)}
+              </>
+            )}
+          </p>
+        )}
         {error && <p class="error">{error}</p>}
         <details class="help">
-          <summary>エクスポートのしかた（Android）</summary>
+          <summary>タイムラインのエクスポートのしかた（Android）</summary>
           <ol>
             <li>端末の「設定」→「位置情報」→「位置情報サービス」→「タイムライン」を開く</li>
             <li>「タイムライン データをエクスポート」でファイルを保存する</li>
@@ -143,13 +213,34 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             それより前のデータは残します。自分で付けた名前やメモは消えません。
           </p>
         </details>
+        <details class="help">
+          <summary>Google Takeout の書き出しかた</summary>
+          <p class="muted">Google マップで保存した場所・ラベル・クチコミを書いた店・マイマップの地点の名前を、地点名として使えます。保存リストとマイマップは「保存リスト」のタブでも見られます。</p>
+          <ol>
+            <li>
+              <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a> で次の4つを選んで書き出し、zip をダウンロードする。
+              「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」だけにする（「写真と動画」は容量のほとんどを占めるが使わない）
+              <ul>
+                <li>マップ（ラベルを付けた場所だけ）</li>
+                <li>マップ（マイプレイス）：保存した場所（スター付きの場所）とクチコミ</li>
+                <li>保存済み：保存リスト</li>
+                <li>マイマップ</li>
+              </ul>
+            </li>
+            <li>この画面の「ファイルを選ぶ」で zip を送る。複数の zip に分かれているときは、全部を一度に選ぶ（別々に送ってもよい）</li>
+          </ol>
+          <p class="muted">
+            zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（既定 2m 以内）か、
+            同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
+          </p>
+        </details>
       </section>
 
       {summary && (
         <section class="card">
           <h3>住所のデータ（位置参照情報）</h3>
           {summary.areas.areas === 0 ? (
-            <p>まだ入っていません。入れると、名前のない場所に「〇〇市〇〇町一丁目」のような住所が付きます。</p>
+            <p>まだ入っていません。入ると、名前のない場所に「〇〇市〇〇町一丁目」のような住所が付きます。</p>
           ) : (
             <ul class="stats">
               <li>{summary.areas.prefectures} 都道府県・代表点 {summary.areas.areas.toLocaleString()} か所</li>
@@ -165,15 +256,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
               )}
             </ul>
           )}
-          <details class="help">
-            <summary>入れかた</summary>
-            <ol>
-              <li><a href="https://nlftp.mlit.go.jp/isj/" target="_blank" rel="noopener">位置参照情報ダウンロードサービス</a>で「大字・町丁目レベル」と「街区レベル」の、必要な都道府県の最新版をダウンロードする（zip のまま、ファイル名も変えない）</li>
-              <li>サーバーの <code>~/gtexp/data/isj/</code> に置き、<code>cd ~/gtexp &amp;&amp; sh deploy/import-isj.sh</code> を実行する（街区の zip は、そのフォルダーに置いたままにする）</li>
-              <li>次にタイムラインを取り込むと、すべての地点に住所が付く（以降は、取り込みのたびに新しい地点にだけ付く）</li>
-            </ol>
-            <p class="muted">同じ都道府県を入れ直すと置き換わり、次の取り込みで全地点を調べ直します。</p>
-          </details>
+          <AdminNote text="位置参照情報は、サーバーの管理者が入れます" />
           {assignResult && <p class="success">{assignResult}</p>}
           <AreaCredit />
         </section>
@@ -185,36 +268,18 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           {summary.takeout.loadedAt ? (
             <ul class="stats">
               <li>
-                保存した場所 {summary.takeout.saved.toLocaleString()} 件・ラベルを付けた場所 {summary.takeout.labeled.toLocaleString()} 件・保存リスト {summary.takeout.listEntries.toLocaleString()} 件
+                保存した場所 {summary.takeout.saved.toLocaleString()} 件・ラベルを付けた場所 {summary.takeout.labeled.toLocaleString()} 件・保存リスト {summary.takeout.listEntries.toLocaleString()} 件・
+                クチコミ {summary.takeout.reviews.toLocaleString()} 件・マイマップ {summary.takeout.mymaps} 個（地点 {summary.takeout.mymapPoints.toLocaleString()} か所）
                 （{new Date(summary.takeout.loadedAt).toLocaleDateString()} に入れたデータ）
               </li>
               <li>
-                保存した場所の名前が付いた地点 {summary.takeout.savedPlaces.toLocaleString()} か所・ラベルの名前が付いた地点 {summary.takeout.labelPlaces.toLocaleString()} か所
+                名前が付いた地点：保存した場所 {summary.takeout.savedPlaces.toLocaleString()} か所・ラベル {summary.takeout.labelPlaces.toLocaleString()} か所・
+                クチコミ {summary.takeout.reviewPlaces.toLocaleString()} か所・マイマップ {summary.takeout.mymapPlaces.toLocaleString()} か所
               </li>
             </ul>
           ) : (
-            <p>まだ入れていません。Google マップで保存した場所やラベルの名前を、地点名として使えます。</p>
+            <p>まだ入れていません。上の「ファイルを送る」で Takeout の zip を送ると、Google マップで保存した場所やラベルの名前を地点名として使えます。</p>
           )}
-          <details class="help">
-            <summary>入れかた</summary>
-            <ol>
-              <li>
-                <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a> で次の3つを選んで書き出し、zip をダウンロードする。
-                「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」だけにする（「写真と動画」は容量のほとんどを占めるが使わない）
-                <ul>
-                  <li>マップ（ラベルを付けた場所だけ）</li>
-                  <li>マップ（マイプレイス）</li>
-                  <li>保存済み</li>
-                </ul>
-              </li>
-              <li>サーバーの <code>~/gtexp/data/takeout/</code> に zip を置き、<code>cd ~/gtexp &amp;&amp; node dist/server.mjs import-takeout data/takeout</code> を実行する</li>
-              <li>「今すぐ調べる」か、次のタイムラインの取り込みで地点名が付く</li>
-            </ol>
-            <p class="muted">
-              保存した場所は、滞在先と同じ場所（既定 2m 以内）のときだけ地点名にします。ラベルを付けた場所は 30m 以内です。
-              書き出し直したときは、同じように入れ直すと全部置き換わります。
-            </p>
-          </details>
         </section>
       )}
 
@@ -238,16 +303,17 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             )}
           </ul>
           <details class="help">
-            <summary>しくみと入れかた</summary>
+            <summary>しくみ</summary>
             <p class="muted">
-              施設名は、日本の OpenStreetMap のデータから名前の付いた店や施設を取り出してサーバーに入れておき、地点から 60m 以内のものを付けます
-              （タイムラインの取り込みのたびと「今すぐ調べる」で）。データを入れる・新しくするときは、サーバーで <code>sh deploy/make-osm-poi.sh</code> を実行します。
+              施設名は、サーバーに入れてある日本の OpenStreetMap のデータから、地点から 60m 以内の名前の付いた店や施設を付けます
+              （タイムラインの取り込みのたびと「今すぐ調べる」で）。
             </p>
             <p class="muted">
-              住所は、サーバーの cron で毎時 <code>deploy/fetch-osm.sh</code> を起動し、まだ調べていない地点をよく行く順に最大 150 か所、
-              OpenStreetMap の Nominatim に問い合わせて貯めます（問い合わせは 15〜25 秒に1回で、公開サーバーの利用規約の範囲）。海外の地点にも付きます。
+              住所は、サーバーが毎時、まだ調べていない地点をよく行く順に少しずつ OpenStreetMap の Nominatim に問い合わせて貯めます
+              （公開サーバーの利用規約の範囲で、15〜25 秒に1回）。海外の地点にも付きます。
             </p>
           </details>
+          <AdminNote text="OpenStreetMap の施設のデータを入れることと、住所を毎時取る設定は、サーバーの管理者が行います" />
           <OsmCredit />
         </section>
       )}

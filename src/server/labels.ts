@@ -36,6 +36,18 @@ export const LABEL_SOURCES: LabelSource[] = [
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
+    id: 'takeout-review', name: 'Google Takeout（クチコミを書いた場所）', kind: 'name', priority: 25,
+    missingNote: '近く（既定 30m 以内）にクチコミを書いた場所はありません（クチコミの店ごとに、いちばん近い 1 か所だけに付けます）',
+    needsData: true,
+    pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
+  },
+  {
+    id: 'takeout-mymap', name: 'Google Takeout（マイマップ）', kind: 'name', priority: 35,
+    missingNote: '近く（既定 30m 以内）にマイマップの地点はありません（マイマップの地点ごとに、いちばん近い 1 か所だけに付けます）',
+    needsData: true,
+    pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
+  },
+  {
     id: 'takeout-addr', name: 'Google Takeout（保存した場所の住所）', kind: 'address', priority: 30,
     missingNote: '同じ場所（既定 2m 以内）に保存した場所はありません',
     needsData: true,

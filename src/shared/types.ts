@@ -33,6 +33,21 @@ export interface AssignStats {
   bySource: { source: string; name: string; assigned: number; checked: number }[];
 }
 
+/** Takeout の zip を画面から入れた結果（POST /api/takeout） */
+export interface TakeoutImportResult {
+  ok: true;
+  saved: number;
+  labeled: number;
+  listEntries: number;
+  lists: string[];
+  reviews: number;
+  mymaps: number;
+  mymapPoints: number;
+  /** 今回の zip に入っていて置き換えた種類（入っていなかった種類は前のまま） */
+  replaced: ('saved' | 'labeled' | 'lists' | 'reviews' | 'mymaps')[];
+  addresses: AssignStats;
+}
+
 export interface LabelSourceStatus {
   source: string;
   sourceName: string;
@@ -134,7 +149,19 @@ export interface SummaryResponse {
   /** 位置参照情報（住所）の状態 */
   areas: { areas: number; prefectures: number; places: number; gaikuPlaces: number; pending: number };
   /** Google Takeout の状態（入れたデータの件数と、地点名の付いた地点の数） */
-  takeout: { saved: number; labeled: number; listEntries: number; loadedAt: string | null; savedPlaces: number; labelPlaces: number };
+  takeout: {
+    saved: number;
+    labeled: number;
+    listEntries: number;
+    reviews: number;
+    mymaps: number;
+    mymapPoints: number;
+    loadedAt: string | null;
+    savedPlaces: number;
+    labelPlaces: number;
+    reviewPlaces: number;
+    mymapPlaces: number;
+  };
   /** OpenStreetMap の状態。施設名は手元のデータ（pois 件・loadedAt に入れた）から、住所は Nominatim から少しずつ */
   osm: {
     pois: number;
@@ -276,12 +303,17 @@ export interface MeResponse {
 
 /** Takeout の保存リスト（保存リストのタブ） */
 export interface ListSummary {
+  /** API と URL で使う鍵。保存リストはリストの名前、マイマップは「mymap:地図の名前」 */
+  key: string;
+  /** 表示する名前 */
   list: string;
+  kind: 'list' | 'mymap';
   count: number;
 }
 
 /** 保存リストの店の位置をどこから得たか：保存した場所（Takeout）・地図に落としたピンの URL・OSM の施設の名前 */
-export type ListGeo = 'takeout' | 'pin' | 'osm';
+/** 位置の出どころ。takeout は保存した場所・クチコミ・マイマップの同じ店（cid）、mymap はマイマップの点、pin は地図に落としたピン */
+export type ListGeo = 'takeout' | 'mymap' | 'pin' | 'osm';
 
 export interface ListEntry {
   title: string;

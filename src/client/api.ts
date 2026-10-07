@@ -14,6 +14,7 @@ import type {
   TripDetailResponse,
   TripsResponse,
   SummaryResponse,
+  TakeoutImportResult,
 } from '../shared/types';
 
 export class ApiError extends Error {
@@ -96,11 +97,15 @@ export async function uploadExport(
     onProgress('compress', 0);
     body = await new Response(file.stream().pipeThrough(new CompressionStream('gzip'))).blob();
   }
+  return sendWithProgress<ImportResult>('/api/import', body, { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodeURIComponent(fileName) }, onProgress);
+}
+
+/** XHR で送り、送信の進み具合を知らせる（fetch では送信の進み具合が取れないため） */
+function sendWithProgress<T>(url: string, body: XMLHttpRequestBodyInit, headers: Record<string, string>, onProgress: (stage: UploadStage, ratio: number) => void): Promise<T> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/import');
-    xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(fileName));
+    xhr.open('POST', url);
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress('upload', e.loaded / e.total);
     };
@@ -110,7 +115,7 @@ export async function uploadExport(
       try {
         data = JSON.parse(xhr.responseText);
       } catch {
-        /* JSON でない応答（Apache のエラーページなど） */
+        /* JSON でない応答（Web サーバーのエラーページなど） */
       }
       if (xhr.status === 200) resolve(data);
       else {
@@ -121,4 +126,12 @@ export async function uploadExport(
     xhr.onerror = () => reject(new ApiError(0, '通信に失敗しました'));
     xhr.send(body);
   });
+}
+
+/** Google Takeout の zip を送る（書き出しが複数の zip に分かれているときは、まとめて送る） */
+export function uploadTakeout(files: Blob[], names: string[], onProgress: (stage: UploadStage, ratio: number) => void): Promise<TakeoutImportResult> {
+  const form = new FormData();
+  files.forEach((f, i) => form.append('file', f, names[i]));
+  onProgress('upload', 0);
+  return sendWithProgress<TakeoutImportResult>('/api/takeout', form, {}, onProgress);
 }

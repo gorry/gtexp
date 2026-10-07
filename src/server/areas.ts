@@ -395,8 +395,8 @@ function runAssign(db: DatabaseSync, opts: AssignOptions, targetsOf: (source: st
   // OpenStreetMap の施設名（手元のデータから）
   const poiT = take('osm-poi');
   add('osm-poi', poiT, assignOsmPoi(db, poiT));
-  // Google Takeout（ラベル・保存した場所・その住所）
-  const tk = { 'takeout-label': take('takeout-label'), 'takeout-saved': take('takeout-saved'), 'takeout-addr': take('takeout-addr') };
+  // Google Takeout（ラベル・保存した場所・その住所・クチコミ・マイマップ）
+  const tk = Object.fromEntries(TAKEOUT_SOURCES.map((s) => [s, take(s)])) as Record<(typeof TAKEOUT_SOURCES)[number], Target[]>;
   const tr = assignTakeout(db, tk, opts.takeout);
   for (const name of TAKEOUT_SOURCES) add(name, tk[name], tr[name]);
   return { checked: seen.size, bySource };

@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS place_labels (
   updated_at TEXT NOT NULL,
   PRIMARY KEY (place_id, source)
 );
--- Google Takeout の保存した場所（kind = saved）とラベルを付けた場所（kind = labeled）（takeout.ts）
+-- Google Takeout の保存した場所（kind = saved）、ラベルを付けた場所（kind = labeled）、クチコミ（kind = review）（takeout.ts）
 CREATE TABLE IF NOT EXISTS takeout_places (
   kind TEXT NOT NULL,
   cid TEXT,
@@ -170,6 +170,19 @@ CREATE TABLE IF NOT EXISTS takeout_lists (
   url TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS takeout_lists_cid ON takeout_lists(cid);
+
+-- Google Takeout のマイマップの地点（takeout.ts）。座標は点か URL から取る。どちらもなければ NULL（cid で保存した場所と照らし合わせる）
+CREATE TABLE IF NOT EXISTS takeout_mymaps (
+  map TEXT NOT NULL,
+  folder TEXT NOT NULL,
+  name TEXT NOT NULL,
+  memo TEXT NOT NULL,
+  url TEXT NOT NULL,
+  cid TEXT,
+  lat REAL,
+  lng REAL
+);
+CREATE INDEX IF NOT EXISTS takeout_mymaps_map ON takeout_mymaps(map);
 
 -- 地点の住所を取得方法ごとに調べた日時（見つからなかった場合も記録し、同じ地点を何度も探さないため）
 CREATE TABLE IF NOT EXISTS label_checks (
@@ -444,6 +457,8 @@ export function getSummary(db: DatabaseSync): SummaryResponse {
       ...takeoutStatus(db),
       savedPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-saved'").get() as Row).n,
       labelPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-label'").get() as Row).n,
+      reviewPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-review'").get() as Row).n,
+      mymapPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-mymap'").get() as Row).n,
     },
     osm: { ...osmAddrStatus(db), ...osmPoiStatus(db), poiPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'osm-poi'").get() as Row).n },
   };

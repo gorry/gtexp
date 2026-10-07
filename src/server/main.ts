@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { open } from 'node:fs/promises';
+import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip, gunzipSync } from 'node:zlib';
 import { extname, join, resolve, sep } from 'node:path';
@@ -12,7 +13,7 @@ import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } f
 import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
-import { importTakeout } from './takeout';
+import { importTakeoutZips } from './takeout';
 import { errorDetail, fetchOsm, lookupOsm, osmRun } from './osm';
 import { importOsmPois } from './osmpoi';
 import { buildPoiKeys, listEntries, listNames } from './lists';
@@ -231,6 +232,56 @@ function userDb(config: Config, user: string): DatabaseSync {
   return db;
 }
 
+/** Takeout の zip を受け取る上限。「マップ」「保存済み」だけなら数 MB。写真まで含めた書き出しは断る */
+const TAKEOUT_MAX_BYTES = 200 * 1024 * 1024;
+
+/**
+ * Google Takeout の zip（複数可。multipart/form-data の file）を受け取って入れる。zip は残さず、使うファイルだけを
+ * 利用者のフォルダーの takeout/ に取り出す（zip に入っていた種類だけ置き換える）。
+ * 入れたあと、取り込みのときと同じ割り当てを行う（地点名がすぐ付くように）
+ */
+async function handleTakeout(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
+  if (Number(req.headers['content-length'] ?? 0) > TAKEOUT_MAX_BYTES) {
+    throw new HttpError(413, 'ファイルが大きすぎます。Takeout では「マップ」と「保存済み」だけを選び、「マップ」の「写真と動画」を外して書き出してください');
+  }
+  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理中です');
+  importing.add(user);
+  // 受け取った zip を一時的に置く場所（取り出したら消す）
+  const tmp = join(userDir(config.dataDir, user), 'takeout-upload');
+  try {
+    let form: FormData;
+    try {
+      form = await new Request('http://localhost/', {
+        method: 'POST',
+        headers: { 'content-type': String(req.headers['content-type'] ?? '') },
+        body: Readable.toWeb(req) as ReadableStream,
+        duplex: 'half',
+      } as RequestInit).formData();
+    } catch {
+      throw new HttpError(400, 'ファイルを受け取れませんでした');
+    }
+    const files = form.getAll('file').filter((v): v is File => typeof v !== 'string');
+    if (!files.length) throw new HttpError(400, 'ファイルがありません');
+    rmSync(tmp, { recursive: true, force: true });
+    mkdirSync(tmp, { recursive: true });
+    for (const [i, file] of files.entries()) {
+      const buf = Buffer.from(await file.arrayBuffer());
+      if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません`);
+      writeFileSync(join(tmp, `${String(i + 1).padStart(2, '0')}_${file.name.replace(/[^\w.\-]/g, '_').slice(0, 100)}`), buf);
+    }
+    let stats;
+    try {
+      stats = importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), [tmp]);
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
+    return { ok: true, ...stats, addresses: assignForImport(db, assignOptions(config)) };
+  } finally {
+    importing.delete(user);
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
 async function route(config: Config, shared: DatabaseSync, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
@@ -284,6 +335,10 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/import' && method === 'POST') {
     sendJson(res, 200, await handleImport(config, user, db, req));
+    return;
+  }
+  if (path === '/api/takeout' && method === 'POST') {
+    sendJson(res, 200, await handleTakeout(config, user, db, req));
     return;
   }
   if (path === '/api/areas/assign' && method === 'POST') {
@@ -545,7 +600,7 @@ async function main(): Promise<void> {
       const config = loadConfig();
       const user = takeUser(openSharedDb(config.dataDir), args);
       if (!args.length) throw new Error('使い方: import-takeout [--user 名前] <Takeout の zip かフォルダー ...>');
-      console.log(importTakeout(openUserDb(config.dataDir, user), args));
+      console.log(importTakeoutZips(openUserDb(config.dataDir, user), join(userDir(config.dataDir, user), 'takeout'), args));
       console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
       break;
     }

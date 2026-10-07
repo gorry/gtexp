@@ -4,10 +4,12 @@ import { distM } from './labelstore';
 import { poiPenalty } from './osmpoi';
 import { transaction } from './tx';
 
-// Takeout の保存リストを見る（保存リストのタブ）。タイムラインのデータは読むだけで変えない。
+// Takeout の保存リストとマイマップを見る（保存リストのタブ）。タイムラインのデータは読むだけで変えない。
+// マイマップは「mymap:地図の名前」をリストの鍵にする（保存リストと同じ名前の地図があっても区別できるように）。
 //
-// 保存リストの CSV には座標がない（店名・メモ・URL だけ）ので、店の位置は次の順に探す：
-// 1. takeout：Takeout の「保存した場所」に同じ店（cid）があれば、その座標
+// マイマップの地点は、点の座標があればそれを使う。保存リストの CSV には座標がない（店名・メモ・URL だけ）ので、
+// 店の位置は次の順に探す（座標のないマイマップの地点も同じ）：
+// 1. takeout：Takeout の「保存した場所」「クチコミ」「マイマップ」に同じ店（cid）があれば、その座標
 // 2. pin：地図に落としたピンなら、URL（/maps/search/緯度,経度）の座標
 // 3. osm：店名を OSM の施設の名前と照らし合わせる（nameKey でそろえて完全一致）。同じ名前の施設が離れて複数あれば決めない
 //
@@ -48,23 +50,41 @@ export function buildPoiKeys(db: DatabaseSync): number {
   return n;
 }
 
+const MYMAP_PREFIX = 'mymap:';
+
 export function listNames(db: DatabaseSync): ListSummary[] {
-  return db.prepare('SELECT list, COUNT(*) AS count FROM takeout_lists GROUP BY list ORDER BY count DESC, list').all() as any[];
+  const lists = (db.prepare('SELECT list, COUNT(*) AS count FROM takeout_lists GROUP BY list ORDER BY count DESC, list').all() as any[]).map(
+    (r): ListSummary => ({ key: r.list, list: r.list, kind: 'list', count: r.count }),
+  );
+  const maps = (db.prepare('SELECT map, COUNT(*) AS count FROM takeout_mymaps GROUP BY map ORDER BY map').all() as any[]).map(
+    (r): ListSummary => ({ key: MYMAP_PREFIX + r.map, list: r.map, kind: 'mymap', count: r.count }),
+  );
+  return [...lists, ...maps];
 }
 
-export function listEntries(db: DatabaseSync, list: string, nearM: number): ListEntriesResponse {
-  const rows = db.prepare('SELECT rowid, cid, title, memo, comment, url FROM takeout_lists WHERE list = ? ORDER BY rowid').all(list) as any[];
-  // 店（cid）ごとの、保存した場所の座標と、地点名の割り当てでその店が付いた滞在先（複数あれば回数の多いもの）。
-  // 1 店ずつ問い合わせると索引がなく遅いので、先にまとめて読む
+export function listEntries(db: DatabaseSync, key: string, nearM: number): ListEntriesResponse {
+  const mymap = key.startsWith(MYMAP_PREFIX);
+  const list = mymap ? key.slice(MYMAP_PREFIX.length) : key;
+  // マイマップの地点は、フォルダーをコメントの代わりに出す
+  const rows = mymap
+    ? (db.prepare('SELECT rowid, cid, name AS title, memo, folder AS comment, url, lat, lng FROM takeout_mymaps WHERE map = ? ORDER BY rowid').all(list) as any[])
+    : (db.prepare('SELECT rowid, cid, title, memo, comment, url, NULL AS lat, NULL AS lng FROM takeout_lists WHERE list = ? ORDER BY rowid').all(list) as any[]);
+  // 店（cid）ごとの座標と、地点名の割り当てでその店が付いた滞在先（複数あれば回数の多いもの）。
+  // 1 店ずつ問い合わせると索引がなく遅いので、先にまとめて読む。座標は保存した場所 → クチコミ → マイマップの順に探す
   const savedOf = new Map<string, { lat: number; lng: number }>();
-  for (const r of db.prepare("SELECT cid, lat, lng FROM takeout_places WHERE kind = 'saved' AND cid IS NOT NULL").all() as any[]) {
+  for (const r of db
+    .prepare(
+      `SELECT cid, lat, lng FROM takeout_places WHERE kind IN ('saved', 'review') AND cid IS NOT NULL
+       UNION ALL SELECT cid, lat, lng FROM takeout_mymaps WHERE cid IS NOT NULL AND lat IS NOT NULL`,
+    )
+    .all() as any[]) {
     if (!savedOf.has(r.cid)) savedOf.set(r.cid, { lat: r.lat, lng: r.lng });
   }
   const labeledOf = new Map<string, { place_id: string; dist_m: number }>();
   for (const r of db
     .prepare(
       `SELECT json_extract(l.detail, '$.cid') AS cid, l.place_id, l.dist_m FROM place_labels l JOIN places p ON p.place_id = l.place_id
-       WHERE l.source = 'takeout-saved' ORDER BY p.visit_count DESC`,
+       WHERE l.source IN ('takeout-saved', 'takeout-review') ORDER BY l.source = 'takeout-saved' DESC, p.visit_count DESC`,
     )
     .all() as any[]) {
     if (r.cid && !labeledOf.has(r.cid)) labeledOf.set(r.cid, r);
@@ -115,6 +135,14 @@ export function listEntries(db: DatabaseSync, list: string, nearM: number): List
       geo: null,
       place: null,
     };
+    // マイマップの点の座標
+    if (r.lat != null && r.lng != null) {
+      [e.lat, e.lng, e.geo] = [r.lat, r.lng, /\/maps\/search\//.test(r.url ?? '') ? 'pin' : 'mymap'];
+      const l = r.cid ? labeledOf.get(r.cid) : null;
+      e.place = l ? placeInfo(l.place_id, l.dist_m ?? 0) : nearestPlace(r.lat, r.lng);
+      if (!e.mapsUrl) e.mapsUrl = `https://www.google.com/maps/search/?api=1&query=${r.lat},${r.lng}`;
+      return e;
+    }
     const saved = r.cid ? savedOf.get(r.cid) : null;
     if (saved) {
       [e.lat, e.lng, e.geo] = [saved.lat, saved.lng, 'takeout'];
@@ -132,5 +160,5 @@ export function listEntries(db: DatabaseSync, list: string, nearM: number): List
     if (e.lat != null && e.lng != null) e.place = nearestPlace(e.lat, e.lng);
     return e;
   });
-  return { list, entries, osm: { pois: poiCount, keys: keyCount } };
+  return { list: key, entries, osm: { pois: poiCount, keys: keyCount } };
 }

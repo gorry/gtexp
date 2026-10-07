@@ -109,6 +109,8 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
                     </span>
                     {s.status !== 'found' && s.note && <span class="muted label-source">{s.note}</span>}
                     {l?.source === 'takeout-saved' && l.detail && <TakeoutDetail detail={l.detail} />}
+                    {l?.source === 'takeout-review' && l.detail && <ReviewDetail detail={l.detail} />}
+                    {l?.source === 'takeout-mymap' && l.detail && <MyMapDetail detail={l.detail} />}
                   </dd>
                 </>
               );
@@ -200,6 +202,38 @@ export function OsmCredit() {
       施設名・住所の一部：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>（ODbL）。
       近くの施設を推定しているため、別の店や施設になっていることがあります。
     </p>
+  );
+}
+
+/** Google Takeout のクチコミ（評価と本文・書いた日・Google マップのリンク） */
+function ReviewDetail({ detail }: { detail: Record<string, string> }) {
+  const url = detail.url?.replace(/^http:/, 'https:');
+  return (
+    <span class="takeout-detail">
+      {detail.review && <span class="visit-memo">{detail.review}</span>}
+      <span class="muted label-source">
+        {detail.date && `${detail.date.slice(0, 10)} にクチコミ`}
+        {url && (
+          <>
+            {detail.date && '・'}
+            <a href={url} target="_blank" rel="noopener">Google マップで開く</a>
+          </>
+        )}
+      </span>
+    </span>
+  );
+}
+
+/** Google Takeout のマイマップの地点（地図とフォルダーの名前・メモ）。地図の名前を押すと、保存リストのタブでその地図を開く */
+function MyMapDetail({ detail }: { detail: Record<string, string> }) {
+  return (
+    <span class="takeout-detail">
+      {detail.memo && <span class="visit-memo">{detail.memo}</span>}
+      <span class="muted label-source">
+        マイマップ「<a href={`#/lists?list=${encodeURIComponent(`mymap:${detail.map}`)}`}>{detail.map}</a>」
+        {detail.folder && `（${detail.folder}）`}
+      </span>
+    </span>
   );
 }
 
