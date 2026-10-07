@@ -40,10 +40,19 @@ APP_GROUP=$(id -gn "$APP_USER")
 USER_HOME=$(eval echo "~$APP_USER")
 step "展開したフォルダー: $APP_DIR　動かすユーザー: $APP_USER（$OS）"
 
-# 動かすユーザーとしてコマンドを実行する（ログインシェルが使えないユーザーでも動くよう、su -m で sh を使う）
 PATH="/usr/local/bin:/usr/bin:/bin:$PATH"
 export PATH
-as_user() { HOME="$USER_HOME" su -m "$APP_USER" -c "cd '$APP_DIR' && $1"; }
+# 動かすユーザーとしてコマンドを実行する。su は PAM の設定によっては（Kerberos など）root からでもパスワードを聞くので、
+# root からなら認証しない sudo -u か runuser（Linux）を先に使う
+as_user() {
+  if command -v sudo >/dev/null 2>&1; then
+    sudo -H -u "$APP_USER" sh -c "PATH='$PATH'; export PATH; cd '$APP_DIR' && $1"
+  elif command -v runuser >/dev/null 2>&1; then
+    HOME="$USER_HOME" runuser -u "$APP_USER" -- sh -c "cd '$APP_DIR' && $1"
+  else
+    HOME="$USER_HOME" su -m "$APP_USER" -c "cd '$APP_DIR' && $1"
+  fi
+}
 
 # ---- Node.js ----
 NODE="${NODE:-$(command -v node || true)}"
