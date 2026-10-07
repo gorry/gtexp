@@ -1,0 +1,1382 @@
+:root {
+  --bg: #ffffff;
+  --bg-soft: #f4f6f8;
+  --fg: #1f2328;
+  --muted: #656d76;
+  --border: #d8dee4;
+  --accent: #1a73e8;
+  --accent-fg: #ffffff;
+  --selected: #e8f0fe;
+  --error: #c5221f;
+  --success: #188038;
+  --cal0: #eef1f4;
+  --cal1: #c6dbfa;
+  --cal2: #8ab4f8;
+  --cal3: #4a8af0;
+  --cal4: #1a5fd0;
+  --bar: #1a73e8;
+  --header-h: 48px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #16191d;
+    --bg-soft: #1f2328;
+    --fg: #e6edf3;
+    --muted: #9198a1;
+    --border: #353b42;
+    --accent: #8ab4f8;
+    --accent-fg: #0b1a33;
+    --selected: #20314d;
+    --error: #f28b82;
+    --success: #81c995;
+    --cal0: #262b31;
+    --cal1: #1e3a66;
+    --cal2: #2b5aa3;
+    --cal3: #4a84e0;
+    --cal4: #8ab4f8;
+    --bar: #4a8af0;
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Hiragino Sans', 'Noto Sans JP', 'Yu Gothic UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--accent);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button[type='submit'],
+.file-button {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+button:disabled,
+.file-button.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input:not([type='file']):not([type='checkbox']),
+select,
+textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  width: 100%;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error {
+  color: var(--error);
+}
+
+.success {
+  color: var(--success);
+}
+
+.icon-btn,
+.text-btn,
+.link-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.icon-btn {
+  font-size: 18px;
+  line-height: 1;
+  min-width: 32px;
+  min-height: 32px;
+}
+
+.icon-btn:hover,
+.text-btn:hover {
+  background: var(--bg-soft);
+}
+
+.text-btn {
+  color: var(--accent);
+}
+
+.link-btn {
+  color: var(--accent);
+  padding: 0;
+  text-decoration: underline;
+}
+
+/* ---- 全体の枠 ---- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: var(--header-h);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.brand {
+  font-weight: 700;
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.header nav {
+  display: flex;
+  gap: 4px;
+}
+
+.header nav a {
+  text-decoration: none;
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+
+.header nav a.active {
+  color: var(--fg);
+  background: var(--bg-soft);
+  font-weight: 600;
+}
+
+.user-name {
+  margin-left: auto;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.logout {
+  margin-left: 8px;
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* ---- ログイン ---- */
+
+.login {
+  max-width: 320px;
+  margin: 15vh auto 0;
+  padding: 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  text-align: center;
+}
+
+.login h1 {
+  margin: 0;
+}
+
+.login p {
+  margin: 0;
+}
+
+.login .about {
+  margin-top: 24px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* ---- 日付から見る ---- */
+
+.split-view {
+  display: grid;
+  grid-template-columns: minmax(340px, 420px) 1fr;
+  height: 100%;
+}
+
+.side {
+  overflow: auto;
+  padding: 12px 16px 24px;
+  border-right: 1px solid var(--border);
+}
+
+.main {
+  min-width: 0;
+  position: relative;
+}
+
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.date-nav input[type='date'] {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.day-title {
+  font-size: 18px;
+  margin: 16px 0 0;
+}
+
+.day-title + .muted {
+  margin: 2px 0 8px;
+}
+
+.trip-banner {
+  background: var(--bg-soft);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin: 8px 0;
+  font-size: 14px;
+}
+
+.calendar {
+  margin-top: 8px;
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.calendar-title {
+  min-width: 110px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.calendar-wd {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.calendar-day {
+  aspect-ratio: 1.4;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+}
+
+.calendar-day.lv0 { background: var(--cal0); }
+.calendar-day.lv1 { background: var(--cal1); }
+.calendar-day.lv2 { background: var(--cal2); }
+.calendar-day.lv3 { background: var(--cal3); color: #fff; }
+.calendar-day.lv4 { background: var(--cal4); color: #fff; }
+
+@media (prefers-color-scheme: dark) {
+  .calendar-day.lv4 { color: #0b1a33; }
+}
+
+.calendar-day.selected {
+  border-color: var(--fg);
+  font-weight: 700;
+}
+
+.calendar-foot {
+  font-size: 12px;
+  text-align: right;
+  margin-top: 4px;
+}
+
+.timeline {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+
+.visit {
+  display: flex;
+  gap: 10px;
+  padding: 10px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.visit:hover {
+  background: var(--bg-soft);
+}
+
+.visit.selected {
+  background: var(--selected);
+}
+
+.badge {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #d93025;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.badge.type-HOME,
+.badge.type-INFERRED_HOME {
+  background: #188038;
+}
+
+.badge.type-WORK,
+.badge.type-INFERRED_WORK {
+  background: #1a73e8;
+}
+
+.visit-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.visit-time {
+  font-size: 13px;
+}
+
+.visit-name {
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.chip {
+  font-size: 11px;
+  font-weight: 400;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 6px;
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+
+.visit-memo {
+  font-size: 13px;
+  white-space: pre-wrap;
+}
+
+.visit-meta {
+  font-size: 12px;
+}
+
+.visit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.note-form-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.activity {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 2px 8px 2px 10px;
+  font-size: 13px;
+  border-left: 2px dashed var(--border);
+  margin-left: 20px;
+}
+
+.activity-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.map,
+.map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-placeholder {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 24px;
+  background: var(--bg-soft);
+}
+
+.map-error {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  background: var(--bg);
+  color: var(--error);
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px #0003;
+}
+
+.infowindow {
+  color: #1f2328;
+  font-size: 14px;
+}
+
+.infowindow div {
+  display: flex;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+/* ---- 取り込み ---- */
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 12px 16px 32px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px 16px 16px;
+  margin-bottom: 16px;
+}
+
+.card h3 {
+  font-size: 15px;
+}
+
+.stats {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.progress progress {
+  flex: 1;
+}
+
+.help {
+  margin-top: 16px;
+  font-size: 14px;
+}
+
+.help summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.history {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.history th,
+.history td {
+  text-align: left;
+  padding: 4px 8px 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* ---- スマホ ---- */
+
+@media (max-width: 800px) {
+  .split-view {
+    display: flex;
+    flex-direction: column-reverse;
+    height: auto;
+  }
+
+  .main {
+    height: 45vh;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .side {
+    border-right: none;
+    overflow: visible;
+  }
+
+  .header {
+    gap: 8px;
+  }
+}
+
+/* 同じ時間帯の入れ子の場所は、主な滞在の下に字下げして小さく出す */
+.visit.nested {
+  margin-left: 24px;
+  padding-top: 2px;
+}
+
+.visit.nested .badge {
+  width: 14px;
+  height: 14px;
+  margin: 4px 6px 0;
+  background: #9aa0a6;
+}
+
+.visit.nested .visit-time {
+  display: none;
+}
+
+.visit.nested .visit-name {
+  font-size: 14px;
+}
+
+/* 画面が狭いときはアプリ名を略名にする */
+.brand-short,
+.nav-short {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  .brand-full,
+  .nav-full {
+    display: none;
+  }
+
+  .brand-short,
+  .nav-short {
+    display: inline;
+  }
+
+  /* タブが 6 つあるので、狭い画面では詰める（それでも入らなければ横に送れる） */
+  .header nav {
+    gap: 0;
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .header nav a {
+    padding: 6px 7px;
+    white-space: nowrap;
+  }
+
+  /* 狭い画面では、タブの場所を空けるため利用者名を出さない */
+  .user-name {
+    display: none;
+  }
+
+  .logout {
+    margin-left: auto;
+  }
+}
+
+/* ---- 場所から見る ---- */
+
+.filters {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filter-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.filter-row > select,
+.filter-row > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.result-count {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.place-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.place-list .badge {
+  font-size: 11px;
+}
+
+.more-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.visit-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.visit-name a:hover {
+  text-decoration: underline;
+}
+
+.tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 6px;
+  vertical-align: 2px;
+}
+
+.tag {
+  font-size: 11px;
+  font-weight: 400;
+  background: var(--bg-soft);
+  color: var(--muted);
+  border-radius: 10px;
+  padding: 0 8px;
+  text-decoration: none;
+}
+
+.visit-name .tag {
+  color: var(--muted);
+}
+
+.back-link {
+  display: inline-block;
+  font-size: 14px;
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+
+.place-title {
+  font-size: 20px;
+  margin: 4px 0;
+}
+
+.place-title + .tags {
+  margin-left: 0;
+}
+
+.place-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 16px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.place-stats dt {
+  color: var(--muted);
+}
+
+.place-stats dd {
+  margin: 0;
+}
+
+/* 年ごとの訪問回数（1系列の棒グラフ） */
+.year-chart {
+  margin: 16px 0 8px;
+}
+
+.year-chart figcaption {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.year-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  height: 88px;
+  padding-top: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* 押せる範囲は棒より広く、列の高さいっぱいにとる */
+.year-col {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 1px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.year-col:disabled {
+  cursor: default;
+}
+
+.year-bar {
+  position: relative;
+  width: 100%;
+  max-width: 18px;
+  background: var(--bar);
+  border-radius: 4px 4px 0 0;
+}
+
+.year-col:hover .year-bar {
+  opacity: 0.8;
+}
+
+.year-max {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1;
+}
+
+.year-tip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--fg);
+  color: var(--bg);
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.year-col:hover .year-tip,
+.year-col:focus-visible .year-tip {
+  display: block;
+}
+
+.year-axis {
+  display: flex;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.year-axis span {
+  flex: 1;
+  text-align: center;
+}
+
+.year-group h3 {
+  font-size: 15px;
+  margin: 16px 0 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.visit-dates {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.visit-dates li {
+  padding: 2px 0;
+}
+
+/* ---- 集計 ---- */
+
+.page.wide {
+  max-width: 1000px;
+}
+
+.filters-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 16px;
+}
+
+.segmented {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.segmented button {
+  background: none;
+  border: none;
+  padding: 6px 18px;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid var(--border);
+}
+
+.segmented button.active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.chip-btn {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 2px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chip-btn.on {
+  background: var(--selected);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.chips-note {
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+.note {
+  font-size: 12px;
+  margin: 0;
+}
+
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.stat {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.stat-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chart-controls {
+  margin-top: 12px;
+}
+
+.chart-controls select {
+  flex: 0 1 auto;
+}
+
+.year-col.static {
+  cursor: default;
+}
+
+.bar-list {
+  margin: 16px 0 8px;
+}
+
+.bar-list figcaption {
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.bar-list-row {
+  display: grid;
+  grid-template-columns: 8em 1fr 6em;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.bar-list-track {
+  height: 14px;
+}
+
+.bar-list-bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--bar);
+  border-radius: 0 4px 4px 0;
+}
+
+.bar-list-value {
+  text-align: right;
+}
+
+.group-table {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.group-table summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.record-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.record-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.record-date {
+  min-width: 9.5em;
+}
+
+/* ---- 書き出し ---- */
+
+.export-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 13px;
+  margin: 4px 0 8px;
+}
+
+.export-link {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 10px;
+  text-decoration: none;
+}
+
+.export-link:hover {
+  background: var(--bg-soft);
+}
+
+.export-link[aria-disabled='true'] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ---- 旅行 ---- */
+
+.trip-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 16px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.trip-card:hover {
+  background: var(--bg-soft);
+}
+
+.trip-period {
+  font-weight: 600;
+}
+
+.trip-meta,
+.trip-dest {
+  font-size: 13px;
+}
+
+a.trip-banner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  color: inherit;
+  text-decoration: none;
+}
+
+a.trip-banner:hover {
+  background: var(--selected);
+}
+
+.trip-banner-more {
+  margin-left: auto;
+  color: var(--accent);
+}
+
+.section-title {
+  font-size: 15px;
+  margin: 20px 0 4px;
+  padding-bottom: 2px;
+  border-bottom: 1px solid var(--border);
+}
+
+.destinations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.destinations li {
+  padding: 4px 0;
+}
+
+.visit-actions.inline {
+  display: inline-flex;
+  margin: 0 0 0 10px;
+}
+
+.visit-dates li.selected {
+  background: var(--selected);
+  border-radius: 4px;
+}
+
+.visit-dates li[id] {
+  cursor: pointer;
+}
+
+/* 住所・地点名の取得方法 */
+.label-source {
+  display: block;
+  font-size: 12px;
+}
+
+.credit {
+  margin-top: 4px;
+}
+
+.note-strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.inline-btn {
+  margin-left: 8px;
+  padding: 2px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.inline-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.takeout-detail {
+  display: block;
+  margin-top: 2px;
+}
+
+.takeout-detail .tags {
+  margin-left: 0;
+}
+
+.takeout-detail .visit-memo {
+  display: block;
+}
+
+/* ---- まとめてタグ付け ---- */
+
+.bulk-open {
+  font-size: 13px;
+  padding-left: 0;
+}
+
+.bulk {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bulk-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.segmented.small button {
+  padding: 4px 12px;
+  font-size: 13px;
+}
+
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
+.bulk-actions button[type='submit'] {
+  margin-left: auto;
+}
+
+.undo {
+  margin-left: 10px;
+}
+
+.bulk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+
+.bulk-list li {
+  border-bottom: 1px solid var(--border);
+}
+
+.bulk-list label {
+  cursor: pointer;
+}
+
+.bulk-list li.disabled .bulk-name {
+  color: var(--muted);
+}
+
+.bulk-name {
+  font-weight: 600;
+}
+
+.bulk-meta {
+  font-size: 12px;
+  padding-left: 22px;
+}
+
+/* 決定で反映される変更（初めの状態からチェックを変えた行） */
+.chip.change-add {
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.chip.change-remove {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+/* まとめてタグ付けの行：行全体で地図を寄せ、チェックボックスと地点名だけでチェックを切り替える */
+.bulk-list li {
+  padding: 5px 4px;
+  cursor: pointer;
+}
+
+.bulk-list li:hover {
+  background: var(--bg-soft);
+}
+
+.bulk-list li.focused {
+  background: var(--selected);
+}
+
+.bulk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+}
+
+.bulk-check {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 !important;
+  border-radius: 4px;
+}
+
+.bulk-check:hover .bulk-name {
+  text-decoration: underline;
+}
+
+.bulk-list li.disabled .bulk-check {
+  cursor: default;
+}
+
+.bulk-list li.disabled .bulk-check:hover .bulk-name {
+  text-decoration: none;
+}
+
+/* 保存リスト：色の丸（タイムラインにある店は青、ない店は橙）。位置の分からない店は押しても地図が動かない */
+.badge.dot {
+  width: 12px;
+  height: 12px;
+  margin-top: 5px;
+}
+
+.visit.no-geo {
+  cursor: default;
+}
+
+
+/* 地図の「現在地」ボタン（Google マップの標準のボタンに合わせた見た目）と、現在地の青い点 */
+.locate-control {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin: 0 10px 10px 0;
+}
+
+.locate-control button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: #fff;
+  color: #666;
+  box-shadow: rgba(0, 0, 0, 0.3) 0 1px 4px -1px;
+  cursor: pointer;
+}
+
+.locate-control button:hover {
+  color: #333;
+}
+
+.locate-control button.active {
+  color: #1a73e8;
+}
+
+.locate-control button.busy svg {
+  animation: locate-blink 1s ease-in-out infinite;
+}
+
+@keyframes locate-blink {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.locate-message {
+  max-width: 220px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(32, 33, 36, 0.9);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.my-location {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #1a73e8;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.3);
+  transform: translateY(50%);
+}

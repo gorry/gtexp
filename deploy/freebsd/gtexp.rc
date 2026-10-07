@@ -1,0 +1,49 @@
+#!/bin/sh
+#
+# PROVIDE: gtexp
+# REQUIRE: LOGIN NETWORKING
+# KEYWORD: shutdown
+#
+# G Timeline Explorer (gtexp) を常駐させる（FreeBSD）。
+# /usr/local/etc/rc.d/gtexp にコピーし（root で実行されるので、リンクではなくコピーを置く）、/etc/rc.conf に次を書く:
+#   gtexp_enable="YES"
+#   gtexp_user="gtexp"        # 動かすユーザー
+# 必要なら変更できる値（既定値）:
+#   gtexp_dir="/home/${gtexp_user}/gtexp"   # リポジトリを展開してビルドしたフォルダー
+#   gtexp_node="/usr/local/bin/node"
+#   gtexp_heap_mb="2048"      # 取り込み時に JSON 全体を読むので多めに
+# ログは ${gtexp_dir}/log/gtexp.log に出る。
+
+. /etc/rc.subr
+
+name="gtexp"
+rcvar="gtexp_enable"
+
+load_rc_config $name
+
+: ${gtexp_enable:="NO"}
+: ${gtexp_user:="gtexp"}
+: ${gtexp_dir:="/home/${gtexp_user}/gtexp"}
+: ${gtexp_node:="/usr/local/bin/node"}
+: ${gtexp_heap_mb:="2048"}
+
+# gtexp_user が設定されていると、rc.subr が daemon ごとそのユーザーで実行する（su 経由）。
+# そのため daemon には -u を付けず、pid ファイルもそのユーザーが書けるフォルダーに置く
+piddir="/var/run/${name}"
+pidfile="${piddir}/${name}.pid"
+logfile="${gtexp_dir}/log/${name}.log"
+procname="/usr/sbin/daemon"
+command="/usr/sbin/daemon"
+command_args="-r -P ${pidfile} -o ${logfile} \
+  /usr/bin/env GTEXP_CONFIG=${gtexp_dir}/gtexp.config.json NODE_NO_WARNINGS=1 \
+  ${gtexp_node} --max-old-space-size=${gtexp_heap_mb} ${gtexp_dir}/dist/server.mjs serve"
+
+start_precmd="${name}_prestart"
+
+gtexp_prestart()
+{
+	install -d -o ${gtexp_user} ${piddir}
+	install -d -o ${gtexp_user} ${gtexp_dir}/log
+}
+
+run_rc_command "$1"

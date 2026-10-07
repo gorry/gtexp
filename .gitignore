@@ -1,0 +1,12 @@
+node_modules/
+dist/
+# 個人の位置情報やサーバー情報はリポジトリに入れない
+data/
+timeline/
+svinfo/
+/gtexp.config.*
+*.log
+/log/
+*.bak
+# Profile.ini から作る（tools/profile.mjs）
+src/shared/profile.gen.ts

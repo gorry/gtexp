@@ -1,0 +1,3 @@
+# サーバー（FreeBSD）で使うスクリプトや設定があるので、改行は常に LF にする
+* text=auto eol=lf
+*.png binary

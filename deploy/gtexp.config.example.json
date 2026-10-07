@@ -1,0 +1,11 @@
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "dataDir": "./data",
+  "isjDir": "",
+  "publicDir": "./dist/public",
+  "sessionDays": 180,
+  "mapsApiKey": "（Maps JavaScript API のキー）",
+  "mapId": "DEMO_MAP_ID",
+  "tzOffsetMinutes": 540
+}

@@ -1,0 +1,38 @@
+G Timeline Explorer (gtexp)
+Copyright (C) 2026 GORRY.
+
+This product is licensed under the Apache License, Version 2.0
+(see the LICENSE file).
+
+https://github.com/gorry/gtexp
+
+------------------------------------------------------------------------
+Third-party software
+------------------------------------------------------------------------
+
+The built web client (dist/public) includes the following software:
+
+  Preact
+  Copyright (c) 2015-present Jason Miller
+  Licensed under the MIT License
+  https://github.com/preactjs/preact
+
+------------------------------------------------------------------------
+Data sources used at run time (not included in this repository)
+------------------------------------------------------------------------
+
+The application can use the following data that the operator downloads
+separately. When those data are used, the application displays the
+attributions below, as their licenses require.
+
+  OpenStreetMap
+  (c) OpenStreetMap contributors
+  Available under the Open Database License (ODbL)
+  https://www.openstreetmap.org/copyright
+
+  位置参照情報（国土交通省）
+  出典：位置参照情報ダウンロードサービス（国土交通省）
+  https://nlftp.mlit.go.jp/isj/
+
+Google, Google Maps, Google Earth and Google Takeout are trademarks of
+Google LLC. This product is not affiliated with or endorsed by Google.

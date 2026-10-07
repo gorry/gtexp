@@ -1,0 +1,30 @@
+# G Timeline Explorer (gtexp) の systemd ユニット。
+# /etc/systemd/system/gtexp.service にコピーし、User・WorkingDirectory・node のパスを環境に合わせて書き換える:
+#   sudo cp deploy/linux/gtexp.service /etc/systemd/system/gtexp.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now gtexp
+# ログは journalctl -u gtexp で見る。
+
+[Unit]
+Description=G Timeline Explorer (gtexp)
+After=network.target
+
+[Service]
+Type=simple
+# 動かすユーザーと、リポジトリを展開したフォルダー
+User=gtexp
+Group=gtexp
+WorkingDirectory=/home/gtexp/gtexp
+Environment=GTEXP_CONFIG=/home/gtexp/gtexp/gtexp.config.json
+# 毎回出る SQLite の ExperimentalWarning をログに出さない
+Environment=NODE_NO_WARNINGS=1
+# node のパスは `command -v node` で確かめる（NodeSource のパッケージなら /usr/bin/node）。
+# 取り込みのときに JSON 全体を読むので、ヒープを多めにする
+ExecStart=/usr/bin/node --max-old-space-size=2048 dist/server.mjs serve
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
