@@ -6,6 +6,7 @@ import { api, setUnauthorizedHandler } from './api';
 import { todayIn } from './format';
 import { About } from './components/About';
 import { DayView } from './components/DayView';
+import { HeaderMenu } from './components/HeaderMenu';
 import { ImportView } from './components/ImportView';
 import { ListsView } from './components/ListsView';
 import { Login } from './components/Login';
@@ -80,15 +81,7 @@ function App() {
           </a>
           <a href="#/import" class={current === 'import' ? 'active' : ''}>取り込み</a>
         </nav>
-        <span class="user-name muted" title="ログインしている利用者">{user}</span>
-        <button
-          type="button"
-          class="text-btn logout"
-          // 画面が覚えている前の利用者の状態（地図の位置・作業中のタグ付けなど）を残さないよう、読み込み直す
-          onClick={() => api.logout().finally(() => location.replace('/'))}
-        >
-          ログアウト
-        </button>
+        <HeaderMenu user={user ?? ''} />
       </header>
       <main class="content">
         {current === 'import' ? (

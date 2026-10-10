@@ -184,14 +184,70 @@ textarea {
   font-weight: 600;
 }
 
-.user-name {
+/* 見出しの右端のメニュー（利用者の名前・このアプリについて・ログアウト） */
+.header-menu {
+  position: relative;
   margin-left: auto;
-  font-size: 13px;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.logout {
-  margin-left: 8px;
+.header-menu-btn {
+  display: flex;
+  align-items: center;
+  padding: 6px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.header-menu-btn:hover,
+.header-menu-btn[aria-expanded='true'] {
+  background: var(--bg-soft);
+  color: var(--fg);
+}
+
+.header-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1000;
+  min-width: 180px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+}
+
+.header-menu-user {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+
+.header-menu-list a,
+.header-menu-list button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--fg);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.header-menu-list a:hover,
+.header-menu-list button:hover {
+  background: var(--bg-soft);
 }
 
 .content {
@@ -669,15 +725,6 @@ textarea {
   .header nav a {
     padding: 6px 7px;
     white-space: nowrap;
-  }
-
-  /* 狭い画面では、タブの場所を空けるため利用者名を出さない */
-  .user-name {
-    display: none;
-  }
-
-  .logout {
-    margin-left: auto;
   }
 }
 
