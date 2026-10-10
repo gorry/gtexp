@@ -18,6 +18,7 @@ import type {
   PlaceNote,
   PlaceSort,
   PlaceSummary,
+  PlacesExtentResponse,
   PlacesResponse,
   PlaceVisit,
   SearchGroup,
@@ -500,6 +501,39 @@ function toPlaceSummary(r: Row): PlaceSummary {
     totalMs: r.total_ms,
     ...(r.has_note_tag == null ? {} : { tagState: r.has_note_tag ? 'note' : r.has_list_tag ? 'list' : 'none' }),
   };
+}
+
+/**
+ * 記録のある場所全体が入る範囲（場所の画面で、地図の最初の位置を決めるのに使う）。
+ * 遠くへの旅行が少しあるだけで地図が世界全体になってしまわないよう、訪問の回数で重みを付けて、
+ * 南北・東西それぞれの端の 5% ずつを除いた範囲にする
+ */
+export function placesExtent(db: DatabaseSync): PlacesExtentResponse {
+  const rows = db.prepare('SELECT lat, lng, visit_count AS n FROM places').all() as { lat: number; lng: number; n: number }[];
+  if (!rows.length) return { bounds: null };
+  const total = rows.reduce((t, r) => t + r.n, 0);
+  const range = (key: 'lat' | 'lng'): [number, number] => {
+    const sorted = [...rows].sort((a, b) => a[key] - b[key]);
+    let low = sorted[0][key];
+    let high = sorted[sorted.length - 1][key];
+    let acc = 0;
+    let lowSet = false;
+    for (const r of sorted) {
+      acc += r.n;
+      if (!lowSet && acc >= total * 0.05) {
+        low = r[key];
+        lowSet = true;
+      }
+      if (acc >= total * 0.95) {
+        high = r[key];
+        break;
+      }
+    }
+    return [low, high];
+  };
+  const [s, n] = range('lat');
+  const [w, e] = range('lng');
+  return { bounds: [s, w, n, e] };
 }
 
 /** 場所ごとに訪問を集計する。期間・範囲で絞ると、その中での回数になる */

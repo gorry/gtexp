@@ -31,7 +31,8 @@ function filtersFrom(query: URLSearchParams): Filters {
     from: query.get('from') ?? '',
     to: query.get('to') ?? '',
     sort: (query.get('sort') ?? 'count') as PlaceSort,
-    area: query.get('area') === '1',
+    // 既定は ON（地図に見えている範囲だけ）
+    area: query.get('area') !== '0',
   };
 }
 
@@ -43,7 +44,7 @@ function filtersToQuery(f: Filters): URLSearchParams {
   if (f.from) p.set('from', f.from);
   if (f.to) p.set('to', f.to);
   if (f.sort !== 'count') p.set('sort', f.sort);
-  if (f.area) p.set('area', '1');
+  if (!f.area) p.set('area', '0');
   return p;
 }
 
@@ -90,6 +91,10 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
   const [focus, setFocus] = useState<{ placeId: string; seq: number } | null>(null);
   const request = useRef(0);
 
+  // 地図が使えない（キーがない・キーが断られた）ときは範囲で絞れないので、全体を出す
+  const [mapFailed, setMapFailed] = useState(false);
+  const area = filters.area && !!config.mapsApiKey && !mapFailed;
+
   const set = (patch: Partial<Filters>) => setFilters((f) => ({ ...f, ...patch }));
 
   // 検索語は打ち終わってから反映する
@@ -101,7 +106,7 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
   const params = (offset: number) => {
     const p = filtersToQuery(filters);
     p.delete('area');
-    if (filters.area && bbox) p.set('bbox', bbox);
+    if (area && bbox) p.set('bbox', bbox);
     p.set('limit', String(PAGE));
     p.set('offset', String(offset));
     return p;
@@ -132,10 +137,10 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
   };
 
   useEffect(() => {
-    if (filters.area && !bbox) return; // 地図の範囲がまだ分からない
+    if (area && !bbox) return; // 地図の範囲がまだ分からない
     setSelected(null);
     load(0);
-  }, [filters, filters.area ? bbox : '']);
+  }, [filters, area, area ? bbox : '']);
 
   useEffect(() => {
     const p = filtersToQuery(filters);
@@ -163,7 +168,7 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
           </div>
           <PeriodPicker from={filters.from} to={filters.to} onChange={(from, to) => set({ from, to })} />
           <label class="check">
-            <input type="checkbox" checked={filters.area} onChange={(e) => set({ area: e.currentTarget.checked })} disabled={!config.mapsApiKey} />
+            <input type="checkbox" checked={area} onChange={(e) => set({ area: e.currentTarget.checked })} disabled={!config.mapsApiKey || mapFailed} />
             地図に見えている範囲だけ
           </label>
         </div>
@@ -213,12 +218,13 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
           focus={bulk ? focus : null}
           selected={selected}
           // まとめてタグ付けの間は、地図を動かしても「見えている範囲」の条件を変えない（拡大した途端に一覧が絞られないように）
-          area={filters.area && !bulk}
+          area={area && !bulk}
           onSelect={(id) => {
             setSelected(id);
             document.getElementById(`place-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           }}
           onBounds={setBbox}
+          onFailed={() => setMapFailed(true)}
         />
       </section>
     </div>
@@ -247,7 +253,7 @@ function PlaceItem({ p, rank, selected, onSelect }: { p: PlaceSummary; rank: num
   );
 }
 
-function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBounds }: {
+function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBounds, onFailed }: {
   config: ClientConfig;
   items: PlaceSummary[];
   /** まとめてタグ付けのとき：選んでいる場所（青）と、外した場所（灰色）でピンの色を変える */
@@ -258,9 +264,14 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
   area: boolean;
   onSelect: (placeId: string) => void;
   onBounds: (bbox: string) => void;
+  /** 地図を出せなかったとき（キーが断られたなど） */
+  onFailed: () => void;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const { map, error } = useGoogleMap(el, config.mapsApiKey, config.mapId);
+  useEffect(() => {
+    if (error) onFailed();
+  }, [error]);
   const markers = useRef(new Map<string, google.maps.marker.AdvancedMarkerElement>());
   const pinEls = useRef(new Map<string, google.maps.marker.PinElement>());
   // 最後に全体が入るよう合わせたときの顔ぶれ（同じ顔ぶれなら合わせ直さない）
@@ -271,6 +282,19 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
   const marksRef = useRef(marks);
   // 戻ってきたときの最初の描画では、覚えていた位置を優先する
   const restored = useRef(lastView !== null);
+
+  // 範囲で絞るときの、地図の最初の位置が決まったか（決まるまでは範囲を知らせない。東京駅付近の範囲で一度探してしまわないように）
+  const [placed, setPlaced] = useState(restored.current);
+  useEffect(() => {
+    if (!map || placed) return;
+    // 範囲で絞らないときは、ピン全体に合わせる（下の処理）
+    if (!area) return setPlaced(true);
+    let alive = true;
+    placeInitially(map).finally(() => alive && setPlaced(true));
+    return () => {
+      alive = false;
+    };
+  }, [map, area]);
 
   // 地図の位置を覚えておき、作り直したときに復元する
   useEffect(() => {
@@ -288,7 +312,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
 
   // 範囲で絞り込むときは、地図を動かし終わるたびに範囲を知らせる
   useEffect(() => {
-    if (!map || !area) return;
+    if (!map || !area || !placed) return;
     let timer: ReturnType<typeof setTimeout>;
     const report = () => {
       const b = map.getBounds();
@@ -309,7 +333,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
       once.remove();
       l.remove();
     };
-  }, [map, area]);
+  }, [map, area, placed]);
 
   useEffect(() => {
     if (!map) return;
@@ -410,5 +434,55 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
       <div ref={el} class="map-canvas" />
       {error && <div class="map-error">{error}</div>}
     </div>
+  );
+}
+
+/**
+ * 範囲で絞るときの、地図の最初の位置。現在地が分かればその付近、分からなければ記録のある場所全体、
+ * どちらもなければそのまま（東京駅付近）。動かしたときは、動き終わるまで待つ（その範囲で探すため）
+ */
+async function placeInitially(map: google.maps.Map): Promise<void> {
+  const settled = () =>
+    new Promise<void>((resolve) => {
+      const l = google.maps.event.addListenerOnce(map, 'idle', () => resolve());
+      // 位置が変わらず idle が来ないときのため
+      setTimeout(() => {
+        l.remove();
+        resolve();
+      }, 2000);
+    });
+  const here = await currentPosition();
+  if (here) {
+    map.setCenter(here);
+    map.setZoom(14);
+    return settled();
+  }
+  try {
+    const { bounds } = await api.placesExtent();
+    if (bounds) {
+      const [s, w, n, e] = bounds;
+      fitTo(map, [{ lat: s, lng: w }, { lat: n, lng: e }], 15);
+      return settled();
+    }
+  } catch {
+    // 取れなければ東京駅付近のまま
+  }
+}
+
+/** 現在地。位置情報がすでに許可されているときだけ取る（開いただけで許可を求める表示は出さない） */
+async function currentPosition(): Promise<google.maps.LatLngLiteral | null> {
+  if (!('geolocation' in navigator) || !navigator.permissions) return null;
+  try {
+    if ((await navigator.permissions.query({ name: 'geolocation' })).state !== 'granted') return null;
+  } catch {
+    return null;
+  }
+  return new Promise((resolve) =>
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => resolve(null),
+      // 少し前の位置でよい。待たせすぎないよう、取れなければ記録全体にする
+      { maximumAge: 10 * 60_000, timeout: 5000 },
+    ),
   );
 }

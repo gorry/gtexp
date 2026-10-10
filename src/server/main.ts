@@ -10,7 +10,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { loadConfig, describeConfig, type Config } from './config';
 import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
 import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } from './users';
-import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
+import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
 import { importTakeoutZips } from './takeout';
@@ -24,6 +24,8 @@ import { builtAt, runCheck, type Health } from './check';
 
 /** サーバーを起動した日時 */
 const startedAt = new Date().toISOString();
+// 起動したときのビルドの日時（あとで dist/server.mjs を作り直しても、動いているのは起動したときのもの）
+const BUILT_AT = builtAt();
 
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -326,7 +328,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   const user = loggedInUser(req, config.sessionSecret, (name) => getUser(shared, name)?.sessionKey ?? null);
   if (path === '/api/health') {
     // 設置の確認（check コマンド）用。ログインは要らない。版とビルドの日時だけを返す
-    const body: Health = { version: PROFILE.version, startedAt, builtAt: builtAt() };
+    const body: Health = { version: PROFILE.version, startedAt, builtAt: BUILT_AT };
     sendJson(res, 200, body);
     return;
   }
@@ -417,6 +419,10 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     sendJson(res, 200, listPlaces(db, parsePlaceQuery(url.searchParams)));
     return;
   }
+  if (path === '/api/places/extent' && method === 'GET') {
+    sendJson(res, 200, placesExtent(db));
+    return;
+  }
   const placeMatch = path.match(/^\/api\/places\/([^/]+)$/);
   if (placeMatch && method === 'GET') {
     const detail = getPlace(db, decodeURIComponent(placeMatch[1]));
@@ -465,7 +471,7 @@ function serve(): void {
   // 取り込みは大きいファイルを受け取るので、タイムアウトを長めにする
   server.requestTimeout = 30 * 60_000;
   server.listen(config.port, config.host, () => {
-    console.log(`${startedAt} ${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人、ビルド ${builtAt()}）`);
+    console.log(`${startedAt} ${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人、ビルド ${BUILT_AT}）`);
     // 秘密の値以外の設定を全部出しておく（どの設定で動いているかを、ログだけで確かめられるように）
     for (const line of describeConfig(config)) console.log(line);
     if (!existsSync(join(config.publicDir, 'index.html'))) {

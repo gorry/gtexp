@@ -200,6 +200,11 @@ export interface PlaceSummary {
   tagState?: 'note' | 'list' | 'none';
 }
 
+/** 記録のある場所の大部分が入る範囲 [南, 西, 北, 東]（遠くへの旅行など、端の少しは除く）。記録がなければ null */
+export interface PlacesExtentResponse {
+  bounds: [number, number, number, number] | null;
+}
+
 export interface PlacesResponse {
   total: number;
   items: PlaceSummary[];
