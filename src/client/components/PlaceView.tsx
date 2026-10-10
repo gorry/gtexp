@@ -5,7 +5,6 @@ import { areaFull, duration, googleEarthUrl, googleMapsUrl, hhmm, semanticLabel,
 import { PIN_COLORS, PIN_DEFAULT, useGoogleMap } from '../maps';
 import { visitName } from './MapView';
 import { NoteForm, TagList, hashtag } from './NoteForm';
-import { YearChart } from './YearChart';
 
 export function PlaceView({ placeId, config }: { placeId: string; config: ClientConfig }) {
   const [data, setData] = useState<PlaceDetailResponse | null>(null);
@@ -88,62 +87,76 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
           <dd><a href={`#/day/${p.lastDate}`}>{shortDate(p.lastDate)}</a></dd>
           <dt>滞在の合計</dt>
           <dd>{totalDuration(p.totalMs)}</dd>
-          {data.sources
-            .filter((s) => s.status !== 'no-data')
-            .map((s) => {
-              const l = data.labels.find((x) => x.source === s.source);
-              return (
-                <>
-                  <dt>{s.kind === 'name' ? '地点名' : '住所'}</dt>
-                  <dd>
-                    {l ? (
-                      areaFull(l)
-                    ) : s.status === 'missing' ? (
-                      <span class="muted">見つかりませんでした</span>
-                    ) : (
-                      <span class="muted">まだ調べていません</span>
-                    )}
-                    <span class="muted label-source">
-                      {s.sourceName}
-                      {l?.distM != null && `・基準点から ${l.distM.toLocaleString()}m`}
-                    </span>
-                    {s.status !== 'found' && s.note && <span class="muted label-source">{s.note}</span>}
-                    {l?.source === 'takeout-saved' && l.detail && <TakeoutDetail detail={l.detail} />}
-                    {l?.source === 'takeout-review' && l.detail && <ReviewDetail detail={l.detail} />}
-                    {l?.source === 'takeout-mymap' && l.detail && <MyMapDetail detail={l.detail} />}
-                  </dd>
-                </>
-              );
-            })}
-          <dt>位置</dt>
-          <dd class="muted">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</dd>
         </dl>
-        {data.labels.some((l) => l.source.startsWith('isj')) && <AreaCredit />}
-        {data.labels.some((l) => l.source.startsWith('osm')) && <OsmCredit />}
 
-        <YearChart
-          years={data.years}
-          onPick={(y) => document.getElementById(`year-${y}`)?.scrollIntoView({ block: 'start', behavior: 'smooth' })}
-        />
+        {/* 訪問の記録：年ごとに折り畳む（新しい年だけ開いておく） */}
+        <details class="place-fold" open>
+          <summary>訪問回数（{p.count.toLocaleString()}回）</summary>
+          {byYear.map(([year, visits], i) => (
+            <details class="year-group" open={i === 0}>
+              <summary>
+                {year}年（{visits.length.toLocaleString()}回）
+              </summary>
+              <ul class="visit-dates">
+                {visits.map((v) => (
+                  <li>
+                    <a href={`#/day/${v.start.slice(0, 10)}`}>{shortDate(v.start.slice(0, 10))}</a>
+                    <span class="muted">
+                      {' '}{hhmm(v.start)}〜{v.start.slice(0, 10) === v.end.slice(0, 10) ? '' : `${Number(v.end.slice(5, 7))}/${Number(v.end.slice(8, 10))} `}{hhmm(v.end)}（{duration(v.startMs, v.endMs)}）
+                      {/* 入れ子の滞在には、外側の場所を添える（その場所の詳細へのリンク） */}
+                      {v.hierarchyLevel > 0 &&
+                        (v.parent ? (
+                          <>
+                            （<a href={`#/place/${encodeURIComponent(v.parent.placeId)}`}>{visitName(v.parent)}</a>内）
+                          </>
+                        ) : (
+                          '（入れ子）'
+                        ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ))}
+        </details>
 
-        {byYear.map(([year, visits]) => (
-          <section class="year-group">
-            <h3 id={`year-${year}`}>
-              {year}年 <span class="muted">{visits.length} 回</span>
-            </h3>
-            <ul class="visit-dates">
-              {visits.map((v) => (
-                <li>
-                  <a href={`#/day/${v.start.slice(0, 10)}`}>{shortDate(v.start.slice(0, 10))}</a>
-                  <span class="muted">
-                    {' '}{hhmm(v.start)}〜{v.start.slice(0, 10) === v.end.slice(0, 10) ? '' : `${Number(v.end.slice(5, 7))}/${Number(v.end.slice(8, 10))} `}{hhmm(v.end)}（{duration(v.startMs, v.endMs)}）
-                    {v.hierarchyLevel > 0 && '・入れ子'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+        {/* 地点名・住所（取得方法ごと）と位置 */}
+        <details class="place-fold">
+          <summary>詳細</summary>
+          <dl class="place-stats">
+            {data.sources
+              .filter((s) => s.status !== 'no-data')
+              .map((s) => {
+                const l = data.labels.find((x) => x.source === s.source);
+                return (
+                  <>
+                    <dt>{s.kind === 'name' ? '地点名' : '住所'}</dt>
+                    <dd>
+                      {l ? (
+                        areaFull(l)
+                      ) : s.status === 'missing' ? (
+                        <span class="muted">見つかりませんでした</span>
+                      ) : (
+                        <span class="muted">まだ調べていません</span>
+                      )}
+                      <span class="muted label-source">
+                        {s.sourceName}
+                        {l?.distM != null && `・基準点から ${l.distM.toLocaleString()}m`}
+                      </span>
+                      {s.status !== 'found' && s.note && <span class="muted label-source">{s.note}</span>}
+                      {l?.source === 'takeout-saved' && l.detail && <TakeoutDetail detail={l.detail} />}
+                      {l?.source === 'takeout-review' && l.detail && <ReviewDetail detail={l.detail} />}
+                      {l?.source === 'takeout-mymap' && l.detail && <MyMapDetail detail={l.detail} />}
+                    </dd>
+                  </>
+                );
+              })}
+            <dt>位置</dt>
+            <dd class="muted">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</dd>
+          </dl>
+          {data.labels.some((l) => l.source.startsWith('isj')) && <AreaCredit />}
+          {data.labels.some((l) => l.source.startsWith('osm')) && <OsmCredit />}
+        </details>
       </aside>
       <section class="main">
         <PlaceMap config={config} lat={p.lat} lng={p.lng} semanticType={p.semanticType} title={visitName(p)} />

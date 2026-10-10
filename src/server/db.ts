@@ -641,6 +641,25 @@ export function getPlace(db: DatabaseSync, placeId: string): PlaceDetailResponse
       endMs: r.end_ms,
       hierarchyLevel: r.hierarchy_level,
     }));
+  // 入れ子の滞在には、その時間を含む外側の滞在（階層がいちばん近く、短いもの）の場所を添える
+  const parentOf = db.prepare(
+    `SELECT pv.place_id, p.semantic_type, n.name AS note_name, n.memo AS note_memo, n.tags AS note_tags,
+       ${ADDRESS_COLUMNS},
+       ${NAME_COLUMNS}
+     FROM visits pv
+     JOIN places p ON p.place_id = pv.place_id
+     LEFT JOIN place_notes n ON n.place_id = pv.place_id
+     ${bestAddressJoin('pv.place_id')}
+     ${bestNameJoin('pv.place_id')}
+     WHERE pv.hierarchy_level < ? AND pv.start_ms <= ? AND pv.end_ms >= ? AND pv.place_id <> ?
+     ORDER BY pv.hierarchy_level DESC, pv.end_ms - pv.start_ms
+     LIMIT 1`,
+  );
+  for (const v of visits) {
+    if (v.hierarchyLevel <= 0) continue;
+    const r = parentOf.get(v.hierarchyLevel, v.startMs, v.endMs, placeId) as Row | undefined;
+    v.parent = r ? { placeId: r.place_id, semanticType: r.semantic_type, note: parseNote(r), address: parseAddress(r), placeName: parsePlaceName(r) } : null;
+  }
   const years: Record<string, number> = {};
   for (const v of visits) {
     const y = v.start.slice(0, 4);

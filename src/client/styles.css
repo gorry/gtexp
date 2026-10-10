@@ -935,11 +935,31 @@ textarea {
   text-align: center;
 }
 
-.year-group h3 {
+/* 場所の詳細の折り畳み（訪問回数・詳細）と、その中の年ごとの折り畳み */
+.place-fold {
+  margin: 12px 0;
+}
+
+.place-fold > summary {
+  cursor: pointer;
   font-size: 15px;
-  margin: 16px 0 4px;
-  padding-bottom: 2px;
+  font-weight: 600;
+  padding: 4px 0;
   border-bottom: 1px solid var(--border);
+}
+
+.year-group {
+  margin-left: 12px;
+}
+
+.year-group > summary {
+  cursor: pointer;
+  font-size: 14px;
+  padding: 6px 0 2px;
+}
+
+.year-group .visit-dates {
+  margin-left: 16px;
 }
 
 .visit-dates {

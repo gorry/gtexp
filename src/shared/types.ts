@@ -217,6 +217,17 @@ export interface PlaceVisit {
   startMs: number;
   endMs: number;
   hierarchyLevel: number;
+  /** 入れ子の滞在のとき、その時間を含む主な滞在の場所（名前を「（○○内）」と添えるため）。見つからなければ null */
+  parent?: VisitParent | null;
+}
+
+/** 入れ子の滞在の外側の場所（名前の決め方は滞在と同じ） */
+export interface VisitParent {
+  placeId: string;
+  semanticType: string;
+  note: PlaceNote | null;
+  address: PlaceLabel | null;
+  placeName: PlaceLabel | null;
 }
 
 export interface PlaceDetailResponse {
