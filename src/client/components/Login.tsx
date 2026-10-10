@@ -64,14 +64,8 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
         バージョン {PROFILE.version}
         <br />
         {PROFILE.copyright}
-        {PROFILE.projectUrl && (
-          <>
-            <br />
-            <a href={PROFILE.projectUrl} target="_blank" rel="noopener">
-              {PROFILE.projectUrl.replace(/^https?:\/\//, '')}
-            </a>
-          </>
-        )}
+        <br />
+        <a href="#/about">このアプリについて</a>
       </p>
     </form>
   );

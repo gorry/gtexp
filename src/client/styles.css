@@ -226,6 +226,54 @@ textarea {
   line-height: 1.6;
 }
 
+/* ---- このアプリについて ---- */
+
+.about-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  height: 100%;
+  overflow: auto;
+  box-sizing: border-box;
+}
+
+.about-page h1 {
+  margin: 8px 0 4px;
+}
+
+.about-page h2 {
+  margin: 24px 0 8px;
+  font-size: 16px;
+}
+
+.about-table {
+  margin-top: 16px;
+  border-collapse: collapse;
+}
+
+.about-table th,
+.about-table td {
+  padding: 4px 12px 4px 0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.about-table th {
+  white-space: nowrap;
+  font-weight: normal;
+  color: var(--muted);
+}
+
+.about-page .notice {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ---- 日付から見る ---- */
 
 .split-view {

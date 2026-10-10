@@ -343,3 +343,15 @@ export interface ListEntriesResponse {
   /** OSM の施設のデータを入れてあるか、名前で照らし合わせる索引があるか */
   osm: { pois: number; keys: number };
 }
+
+/** GET /api/health（ログインなしで見られる）：動いているサーバーの版・起動の日時・ビルドの日時とコミット */
+export interface HealthResponse {
+  version: string;
+  /** 起動した日時 */
+  startedAt: string;
+  /** 動いている dist/server.mjs の日時（起動したときの値） */
+  builtAt: string;
+  /** ビルドの元にしたコミット（短い形。Git のない場所でビルドしたときは空）と、コミットしていない変更があったか */
+  commit: string;
+  dirty: boolean;
+}

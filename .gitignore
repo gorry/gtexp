@@ -10,3 +10,4 @@ svinfo/
 *.bak
 # Profile.ini から作る（tools/profile.mjs）
 src/shared/profile.gen.ts
+src/shared/build.gen.ts

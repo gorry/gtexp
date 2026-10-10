@@ -115,6 +115,7 @@ URL の `#` 以降で画面を切り替える。
 | `#/trip/{開始時刻ms}` | 旅行の詳細（旅行は取り込みのたびに作り直されて id が変わるので、開始時刻で指す） |
 | `#/lists?list=…&f=…` | 保存リスト |
 | `#/import` | 取り込み |
+| `#/about` | このアプリについて（ログインしていなくても見られる。ログインの画面からリンク）。版・著作権・プロジェクトの URL、画面とサーバーそれぞれのビルドのコミットと日時（違っていれば読み込み直しを勧める）、NOTICE の全文（ビルドのときに埋め込む）と LICENSE へのリンク |
 | （未ログイン時） | ログイン |
 
 ### 日付から見る
@@ -232,7 +233,7 @@ URL の `#` 以降で画面を切り替える。
 | `POST /api/login` | `{user, password}` → Cookie を発行し `{loggedIn, user}` を返す。利用者名は大文字・小文字を区別しない（小文字にそろえる） |
 | `POST /api/logout` | Cookie を消す |
 | `GET /api/me` | `{loggedIn, user}` |
-| `GET /api/health` | ログイン不要。`{version, startedAt, builtAt}`（動いているサーバーの版・起動した日時・ビルドの日時。check コマンドが今のビルドと比べる） |
+| `GET /api/health` | ログイン不要。`{version, startedAt, builtAt, commit, dirty}`（動いているサーバーの版・起動した日時・起動したときの dist/server.mjs の日時・ビルドの元にしたコミットと、コミットしていない変更を含むか。check コマンドが今のビルドと比べ、「このアプリについて」が表示する） |
 | `GET /api/config` | `{mapsApiKey, mapId, tzOffsetMinutes}` |
 | `POST /api/import` | 本文がファイルそのもの（gzip 可、先頭2バイトで判定）。ヘッダー `X-File-Name` に元のファイル名（URL エンコード）。利用者ごとに同時に1件まで |
 | `POST /api/takeout` | Google Takeout の zip（multipart/form-data の `file`、複数可、合わせて 200MB まで）を入れ、地点への割り当てまで行う → 置き換えた種類・件数・保存リストの名前・割り当ての結果。zip に入っていた種類だけ置き換わる |
@@ -332,12 +333,13 @@ URL の `#` 以降で画面を切り替える。
 
 - `tools/profile.mjs` が読んで `src/shared/profile.gen.ts`（`PROFILE`。git には入れない）を作る。npm の dev:*・build:*・typecheck・cli の前に自動で動く
 - ページの題名（index.html の `__APP_TITLE__`）と manifest の name・short_name は、vite.config.ts が入れる
+- ビルドの情報（元にしたコミット・コミットしていない変更を含むか・ビルドの日時）は、`tools/buildinfo.mjs` が `src/shared/build.gen.ts`（`BUILD`。git には入れない）に書く。build:client・build:server の前に自動で動き、dev:*・typecheck・cli の前は、なければ「開発用」として作る。Git のない場所でビルドしたときは、コミットは「不明」
 
 | 値 | 使う所 |
 |---|---|
 | [Title] Text / ShortText | 画面の見出し・ログイン画面・ページの題名・manifest、書き出しの題名、GPX の creator、OSM に送る User-Agent（`略名/バージョン (正式名; personal use)`）、起動時と使い方の表示 |
-| [Version] Text | ログイン画面、見出しにマウスを載せたとき、GPX の creator、User-Agent、起動時と使い方の表示。package.json の version も同じ値にそろえる（違うと profile.mjs が注意を出す） |
-| [Copyright] Text | ログイン画面、使い方の表示 |
-| [URL] Project | ログイン画面のリンク |
+| [Version] Text | ログイン画面・このアプリについて、見出しにマウスを載せたとき、GPX の creator、User-Agent、起動時と使い方の表示。package.json の version も同じ値にそろえる（違うと profile.mjs が注意を出す） |
+| [Copyright] Text | ログイン画面・このアプリについて、使い方の表示 |
+| [URL] Project | このアプリについて（プロジェクトの URL と LICENSE へのリンク） |
 | [AppId] Namespace・[URL] Notice・[Version] Number・[Copyright] Name | PROFILE に入れてあるが、今は使っていない |
 

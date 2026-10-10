@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { accessSync, constants, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import type { Config } from './config';
+import type { HealthResponse } from '../shared/types';
 import { configPath, unknownConfigKeys } from './config';
 import { openSharedDb } from './db';
 import { listUsers } from './users';
@@ -15,11 +16,7 @@ type Level = 'ok' | 'info' | 'warn' | 'error';
 const MARK: Record<Level, string> = { ok: '[OK]  ', info: '[情報]', warn: '[注意]', error: '[要対応]' };
 
 /** /api/health の応答（動いているサーバーの版と、そのビルドの日時） */
-export interface Health {
-  version: string;
-  startedAt: string;
-  builtAt: string;
-}
+export type Health = HealthResponse;
 
 /** 動いている server.mjs のビルドの日時（ファイルの更新日時） */
 export function builtAt(): string {

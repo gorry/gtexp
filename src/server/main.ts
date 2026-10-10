@@ -20,6 +20,7 @@ import { buildPoiKeys, listEntries, listNames } from './lists';
 import { CONTENT_TYPES, EXPORT_FORMATS, render, type ExportData, type ExportFormat } from './exporter';
 import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget } from '../shared/types';
 import { PROFILE } from '../shared/profile.gen';
+import { BUILD } from '../shared/build.gen';
 import { builtAt, runCheck, type Health } from './check';
 
 /** サーバーを起動した日時 */
@@ -328,7 +329,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   const user = loggedInUser(req, config.sessionSecret, (name) => getUser(shared, name)?.sessionKey ?? null);
   if (path === '/api/health') {
     // 設置の確認（check コマンド）用。ログインは要らない。版とビルドの日時だけを返す
-    const body: Health = { version: PROFILE.version, startedAt, builtAt: BUILT_AT };
+    const body: Health = { version: PROFILE.version, startedAt, builtAt: BUILT_AT, commit: BUILD.commit, dirty: BUILD.dirty };
     sendJson(res, 200, body);
     return;
   }
@@ -471,7 +472,7 @@ function serve(): void {
   // 取り込みは大きいファイルを受け取るので、タイムアウトを長めにする
   server.requestTimeout = 30 * 60_000;
   server.listen(config.port, config.host, () => {
-    console.log(`${startedAt} ${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人、ビルド ${BUILT_AT}）`);
+    console.log(`${startedAt} ${PROFILE.shortTitle} ${PROFILE.version}: http://${config.host}:${config.port}/（Node.js ${process.version}、利用者 ${listUsers(shared).length} 人、ビルド ${BUILT_AT}${BUILD.commit ? ` ${BUILD.commit}${BUILD.dirty ? "+" : ""}` : ""}）`);
     // 秘密の値以外の設定を全部出しておく（どの設定で動いているかを、ログだけで確かめられるように）
     for (const line of describeConfig(config)) console.log(line);
     if (!existsSync(join(config.publicDir, 'index.html'))) {

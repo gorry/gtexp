@@ -4,6 +4,7 @@ import { PROFILE } from '../shared/profile.gen';
 import type { ClientConfig } from '../shared/types';
 import { api, setUnauthorizedHandler } from './api';
 import { todayIn } from './format';
+import { About } from './components/About';
 import { DayView } from './components/DayView';
 import { ImportView } from './components/ImportView';
 import { ListsView } from './components/ListsView';
@@ -15,7 +16,7 @@ import { TripView } from './components/TripView';
 import { TripsView } from './components/TripsView';
 import './styles.css';
 
-// 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import）
+// 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import, #/about）
 function parseHash(): { page: string; arg: string; query: URLSearchParams } {
   const [path, qs] = location.hash.replace(/^#/, '').split('?');
   const [, page = '', arg = ''] = path.split('/');
@@ -53,6 +54,8 @@ function App() {
   }, [loggedIn]);
 
   if (loggedIn === null) return null;
+  // このアプリについて（ログインしていなくても見られる）
+  if (page === 'about') return <About loggedIn={loggedIn} />;
   if (!loggedIn) return <Login onLogin={setUser} />;
   if (!config) return null;
 

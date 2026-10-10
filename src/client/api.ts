@@ -9,6 +9,7 @@ import type {
   MeResponse,
   PlaceDetailResponse,
   PlaceNote,
+  HealthResponse,
   PlacesExtentResponse,
   PlacesResponse,
   SearchResponse,
@@ -55,6 +56,7 @@ export const api = {
   day: (date: string) => request<DayResponse>('GET', `/api/day?date=${date}`),
   calendar: (year: number) => request<CalendarResponse>('GET', `/api/calendar?year=${year}`),
   /** 条件は URLSearchParams の形で渡す（q, kind, from, to, bbox, sort, limit, offset） */
+  health: () => request<HealthResponse>('GET', '/api/health'),
   places: (query: URLSearchParams) => request<PlacesResponse>('GET', `/api/places?${query}`),
   placesExtent: () => request<PlacesExtentResponse>('GET', '/api/places/extent'),
   place: (placeId: string) => request<PlaceDetailResponse>('GET', `/api/places/${encodeURIComponent(placeId)}`),
