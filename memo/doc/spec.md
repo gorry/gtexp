@@ -63,7 +63,7 @@
 
 ### OpenStreetMap の施設名（osm-poi）
 - 公開の Overpass サーバーは混雑で応答しないことが多いので使わず、日本の OSM データを手元に置いて探す
-- **データを入れる**（新しくしたいときだけ）：`deploy/make-osm-poi.sh`。Geofabrik の `japan-latest.osm.pbf`（約 2GB）から、osmium-tool で施設のタグ（amenity / shop / tourism / leisure / office / healthcare / craft / historic / aeroway / railway=station,halt / public_transport=station / building）と名前を持つものを取り出し、`osmium export -f geojsonseq`（点と面）にして、`server.mjs import-osm-poi` で osm_pois テーブルに入れる（全部置き換え。面は外周の頂点の平均を代表点にする。名前は name:ja があればそれ）。入れた日時を shared_kv の `osm-poi:loaded_at` に記録する
+- **データを入れる**（新しくしたいときだけ）：`deploy/make-osm-poi.sh`。Geofabrik の `japan-latest.osm.pbf`（約 2GB）から、osmium-tool で施設のタグ（amenity / shop / tourism / leisure / office / healthcare / craft / historic / aeroway / railway=station,halt / public_transport=station / building）と名前を持つものを取り出し、`osmium export -f geojsonseq`（点と面）にして、`server.mjs import-osm-poi` で osm_pois テーブルに入れる（全部置き換え。面は外周の頂点の平均を代表点にする。名前は name:ja があればそれ）。入れた日時を shared_kv の `osm-poi:loaded_at` に、施設と索引の件数を `osm-poi:counts` に記録する（件数を数えると大きな表を全部読むことになり、ディスクから読むと数秒かかるため。記録がなければ最初に使うときに 1 回だけ数える）
 - **地点に割り当てる**：位置参照情報と同じく、タイムラインの取り込みのたびと「今すぐ調べる」で、まだ調べていない地点（とデータを入れ直したあとに調べ直していない地点）だけ。60m 以内の施設から「距離＋種類による上乗せ」がいちばん小さいものを選ぶ（上乗せ：店や施設 0m、駅・空港 15m、建物 25m、それ以外 40m。店に行ったのに隣の駅や建物の名前が選ばれないように）
 - 日本の外の地点には付かない
 
@@ -266,7 +266,7 @@ URL の `#` 以降で画面を切り替える。
 - ログインの Cookie は「利用者名.有効期限.署名」。署名には設定の sessionSecret と利用者の session_key を混ぜる。パスワードを変えると session_key を作り直すので、その利用者のログイン中の端末はログアウトされる。利用者を消してもログインできなくなる
 - 見出しの右端のメニュー（≡）に、ログインしている利用者名・「このアプリについて」・「ログアウト」を置く（画面を切り替えるタブとは分ける。外を押す・Esc・画面の切り替えで閉じる）
 - 画面は、ログアウトのときに読み込み直す（前の利用者の地図の位置や作業中のタグ付けを残さないため）。ログイン画面には、最後にログインした利用者名を入れておく
-- 参照データを入れた日時（`isj-oaza`・`isj-gaiku`・`osm-poi` の loaded_at）は `shared_kv` に、ほか（Takeout の loaded_at、osm:last_run など）は利用者の `kv` に持つ。参照データを入れ直すと、利用者それぞれが次の取り込みで調べ直す
+- 参照データを入れた日時（`isj-oaza`・`isj-gaiku`・`osm-poi` の loaded_at）と OSM の施設の件数（`osm-poi:counts`）は `shared_kv` に、ほか（Takeout の loaded_at、osm:last_run など）は利用者の `kv` に持つ。参照データを入れ直すと、利用者それぞれが次の取り込みで調べ直す
 - fetch-osm は、Nominatim の問い合わせの間隔をサーバー全体で守るため、全員の分を 1 回 150 件の中で、利用者を順に回しながら取る（結果は利用者ごと）
 
 ## データベース（SQLite）
@@ -291,7 +291,7 @@ URL の `#` 以降で画面を切り替える。
 | `imports` | 取り込みの履歴 | 追加 |
 | `kv` | userLocationProfile など | 上書き |
 | `users` | 利用者の一覧（shared） | 触らない（コマンドで管理） |
-| `shared_kv` | 参照データを入れた日時（shared） | 触らない |
+| `shared_kv` | 参照データを入れた日時と件数（shared） | 触らない |
 
 ### 取り込みの規則
 1. ファイルの全セグメントから最初の開始時刻を求める

@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { ListEntriesResponse, ListEntry, ListSummary } from '../shared/types';
-import { distM } from './labelstore';
+import { countsKey, distM, getKv, setKv } from './labelstore';
 import { poiPenalty } from './osmpoi';
 import { transaction } from './tx';
 
@@ -47,7 +47,28 @@ export function buildPoiKeys(db: DatabaseSync): number {
       n++;
     }
   });
+  savePoiCounts(db);
   return n;
+}
+
+/**
+ * OSM の施設と、名前で探す索引の件数。表を数えると全部を読むことになり、サーバーがしばらく読んでいないと
+ * ディスクから読むので数秒かかる（その間ほかの問い合わせも待たされる）。そこで索引を作ったときに数えて覚えておく。
+ * 覚えていなければ（この仕組みより前に入れたデータ）、1 回だけ数えて覚える
+ */
+export function poiCounts(db: DatabaseSync): { pois: number; keys: number } {
+  const saved = getKv(db, countsKey('osm-poi'));
+  if (saved) return JSON.parse(saved);
+  return savePoiCounts(db);
+}
+
+function savePoiCounts(db: DatabaseSync): { pois: number; keys: number } {
+  const counts = {
+    pois: (db.prepare('SELECT COUNT(*) AS n FROM osm_pois').get() as any).n as number,
+    keys: (db.prepare('SELECT COUNT(*) AS n FROM osm_poi_keys').get() as any).n as number,
+  };
+  setKv(db, countsKey('osm-poi'), JSON.stringify(counts));
+  return counts;
 }
 
 const MYMAP_PREFIX = 'mymap:';
@@ -91,8 +112,7 @@ export function listEntries(db: DatabaseSync, key: string, nearM: number): ListE
   }
   const placesIn = db.prepare('SELECT place_id, lat, lng FROM places WHERE lat BETWEEN ? AND ? AND lng BETWEEN ? AND ?');
   const visitsOf = db.prepare('SELECT COUNT(*) AS n, MAX(local_date) AS last FROM visits WHERE place_id = ?');
-  const keyCount = (db.prepare('SELECT COUNT(*) AS n FROM osm_poi_keys').get() as any).n as number;
-  const poiCount = (db.prepare('SELECT COUNT(*) AS n FROM osm_pois').get() as any).n as number;
+  const { pois: poiCount, keys: keyCount } = poiCounts(db);
   const poisOf = db.prepare('SELECT p.name, p.kind, p.type, p.lat, p.lng FROM osm_poi_keys k JOIN osm_pois p ON p.rowid = k.poi WHERE k.key = ?');
 
   const placeInfo = (placeId: string, d: number): ListEntry['place'] => {

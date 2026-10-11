@@ -3,7 +3,7 @@ import { createReadStream } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { transaction } from './tx';
 import { distM, getKv, loadedKey, markChecked, setKv, type Target } from './labelstore';
-import { buildPoiKeys } from './lists';
+import { buildPoiKeys, poiCounts } from './lists';
 
 // OpenStreetMap の施設名を手元のデータから付ける（取得方法 osm-poi）。
 //
@@ -146,7 +146,7 @@ export function assignOsmPoi(db: DatabaseSync, targets: Target[]): number {
 }
 
 export function osmPoiStatus(db: DatabaseSync): { pois: number; loadedAt: string | null } {
-  const pois = (db.prepare('SELECT COUNT(*) AS n FROM osm_pois').get() as any).n as number;
+  const { pois } = poiCounts(db);
   const loadedAt = getKv(db, loadedKey(SOURCE));
   return { pois, loadedAt };
 }

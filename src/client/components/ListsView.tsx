@@ -30,7 +30,9 @@ function geoLabel(e: ListEntry): string {
  * タイムラインのデータは読むだけ
  */
 export function ListsView({ config, query }: { config: ClientConfig; query: URLSearchParams }) {
-  const [lists, setLists] = useState<ListSummary[]>([]);
+  // null はまだ届いていない（届くまでは「入っていません」と出さない）
+  const [lists, setLists] = useState<ListSummary[] | null>(null);
+  const [listsError, setListsError] = useState('');
   const [list, setList] = useState(query.get('list') ?? '');
   const [filter, setFilter] = useState<Filter>((query.get('f') ?? '') as Filter);
   const [data, setData] = useState<ListEntriesResponse | null>(null);
@@ -39,9 +41,11 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
   const [focus, setFocus] = useState<{ index: number; seq: number } | null>(null);
   const sideRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    api.lists().then(setLists).catch((e) => setError(e.message));
-  }, []);
+  const loadLists = () => {
+    setListsError('');
+    api.lists().then(setLists).catch((e) => setListsError(e.message));
+  };
+  useEffect(loadLists, []);
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -99,9 +103,9 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
             <option value="">保存リスト・マイマップを選ぶ</option>
             {(['list', 'mymap'] as const).map(
               (kind) =>
-                lists.some((l) => l.kind === kind) && (
+                lists?.some((l) => l.kind === kind) && (
                   <optgroup label={kind === 'list' ? '保存リスト' : 'マイマップ'}>
-                    {lists
+                    {lists!
                       .filter((l) => l.kind === kind)
                       .map((l) => (
                         <option value={l.key}>
@@ -122,7 +126,14 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
           </div>
         </div>
         {error && <p class="error">{error}</p>}
-        {!lists.length && !error && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送ってください）。</p>}
+        {listsError && (
+          <p class="error">
+            {listsError}{' '}
+            <button type="button" class="link-btn" onClick={loadLists}>もう一度</button>
+          </p>
+        )}
+        {!lists && !listsError && <p class="muted result-count">読み込んでいます…</p>}
+        {lists && !lists.length && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送ってください）。</p>}
         {loading && <p class="muted result-count">読み込んでいます…</p>}
         {data && (
           <p class="muted result-count">

@@ -31,7 +31,10 @@ const SHARED_SOURCES = ['isj-oaza', 'isj-gaiku', 'osm-poi'];
 /** データ（位置参照情報・OSM の施設・Takeout）を入れた日時を記録する kv のキー */
 export const loadedKey = (source: string) => `${source}:loaded_at`;
 
-const kvTable = (key: string) => (SHARED_SOURCES.some((s) => key === loadedKey(s)) ? 'shared_kv' : 'kv');
+/** データの件数を記録する kv のキー（数えるのに大きな表を全部読むことになるので、入れたときに数えておく） */
+export const countsKey = (source: string) => `${source}:counts`;
+
+const kvTable = (key: string) => (SHARED_SOURCES.some((s) => key === loadedKey(s) || key === countsKey(s)) ? 'shared_kv' : 'kv');
 
 export function getKv(db: DatabaseSync, key: string): string | null {
   return ((db.prepare(`SELECT value FROM ${kvTable(key)} WHERE key = ?`).get(key) as any)?.value as string) ?? null;
