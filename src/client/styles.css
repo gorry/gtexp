@@ -962,6 +962,16 @@ textarea {
   margin-left: 16px;
 }
 
+.date-group > summary {
+  cursor: pointer;
+  font-size: 14px;
+  padding: 6px 0 2px;
+}
+
+.date-group .visit-dates {
+  margin-left: 16px;
+}
+
 .visit-dates {
   list-style: none;
   margin: 0;

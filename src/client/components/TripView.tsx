@@ -89,16 +89,24 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
           ))}
         </ul>
 
+        {/* 滞在先：始まった日ごとに折り畳む（最初はすべて開いておく） */}
         <h3 class="section-title">滞在先</h3>
-        <ul class="visit-dates">
-          {data.visits.map((v) => (
-            <li id={`trip-visit-${v.id}`} class={selected === v.id ? 'selected' : ''} onClick={() => setSelected(v.id)}>
-              <span class="muted">{shortDate(v.start.slice(0, 10)).replace(/^\d{4}\//, '')} {hhmm(v.start)}</span>{' '}
-              <a href={`#/place/${encodeURIComponent(v.placeId)}`} onClick={(e) => e.stopPropagation()}>{visitName(v)}</a>
-              <span class="muted">（{duration(v.startMs, v.endMs)}）</span>
-            </li>
-          ))}
-        </ul>
+        {byDate(data.visits).map(([date, visits]) => (
+          <details class="date-group" open>
+            <summary>
+              {shortDate(date).replace(/^\d{4}\//, '')}（{visits.length.toLocaleString()}件）
+            </summary>
+            <ul class="visit-dates">
+              {visits.map((v) => (
+                <li id={`trip-visit-${v.id}`} class={selected === v.id ? 'selected' : ''} onClick={() => setSelected(v.id)}>
+                  <span class="muted">{hhmm(v.start)}</span>{' '}
+                  <a href={`#/place/${encodeURIComponent(v.placeId)}`} onClick={(e) => e.stopPropagation()}>{visitName(v)}</a>
+                  <span class="muted">（{duration(v.startMs, v.endMs)}）</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        ))}
       </aside>
       <section class="main">
         <TripMap
@@ -108,7 +116,11 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
           selected={selected}
           onSelect={(id) => {
             setSelected(id);
-            document.getElementById(`trip-visit-${id}`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+            // 地図で選んだ滞在の日が閉じていれば、開いてから見える所まで動かす
+            const item = document.getElementById(`trip-visit-${id}`);
+            const group = item?.closest('details');
+            if (group) group.open = true;
+            item?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
           }}
         />
       </section>
@@ -210,4 +222,15 @@ function TripMap({ config, visits, path, selected, onSelect }: {
       {error && <div class="map-error">{error}</div>}
     </div>
   );
+}
+
+/** 滞在を始まった日ごとにまとめる（並びは元のまま） */
+function byDate(visits: Visit[]): [string, Visit[]][] {
+  const groups: [string, Visit[]][] = [];
+  for (const v of visits) {
+    const d = v.start.slice(0, 10);
+    if (groups.length && groups[groups.length - 1][0] === d) groups[groups.length - 1][1].push(v);
+    else groups.push([d, [v]]);
+  }
+  return groups;
 }
