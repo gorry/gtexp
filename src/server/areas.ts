@@ -6,6 +6,7 @@ import { readZip } from './zip';
 import { assignOsmPoi } from './osmpoi';
 import { assignTakeout, TAKEOUT_SOURCES, type TakeoutOptions } from './takeout';
 import { assignSwarm, SWARM_SOURCE } from './swarm';
+import { rebuildLabelStops } from './labelstops';
 import { sourceName } from './labels';
 import type { AssignStats } from '../shared/types';
 import { distM, getKv, loadedKey, markChecked, pendingTargets, setKv, upsertLabel, type Target } from './labelstore';
@@ -361,6 +362,9 @@ export function importAreas(db: DatabaseSync, paths: string[], isjDir: string): 
 export interface AssignOptions {
   isjDir: string;
   takeout: TakeoutOptions;
+  /** ラベルを付けた場所への立ち寄りとみなす距離（m） */
+  labelStopM: number;
+  tzOffsetMinutes: number;
 }
 
 /**
@@ -378,6 +382,8 @@ export function assignAll(db: DatabaseSync, opts: AssignOptions): AssignStats {
 }
 
 function runAssign(db: DatabaseSync, opts: AssignOptions, targetsOf: (source: string) => Target[]): AssignStats {
+  // ラベルを付けた場所への立ち寄り（推定の滞在）を作り直す。新しくできた場所（label:…）もこのあと調べる
+  rebuildLabelStops(db, { stopM: opts.labelStopM, labelM: opts.takeout.labelM, tzOffsetMinutes: opts.tzOffsetMinutes });
   const bySource: AssignStats['bySource'] = [];
   const add = (source: string, targets: Target[], assigned: number) => {
     if (targets.length) bySource.push({ source, name: sourceName(source), assigned, checked: targets.length });

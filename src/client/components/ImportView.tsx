@@ -242,7 +242,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           </ol>
           <p class="muted">
             zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（既定 2m 以内）か、
-            同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
+            同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。
+            また、経路がラベルを付けた場所の 50m 以内に来た時間を、短くても「立ち寄り」として滞在に加えます（「推定」の印が付きます。自宅・職場の近くは除きます）。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
           </p>
         </details>
         <details class="help">
@@ -302,6 +303,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
                 名前が付いた地点：保存した場所 {summary.takeout.savedPlaces.toLocaleString()} か所・ラベル {summary.takeout.labelPlaces.toLocaleString()} か所・
                 クチコミ {summary.takeout.reviewPlaces.toLocaleString()} か所・マイマップ {summary.takeout.mymapPlaces.toLocaleString()} か所
               </li>
+              <li>ラベルを付けた場所への立ち寄り（経路から推定した滞在）：{summary.takeout.labelStops.toLocaleString()} 件</li>
             </ul>
           ) : (
             <p>まだ入れていません。上の「ファイルを送る」で Takeout の zip を送ると、Google マップで保存した場所やラベルの名前を地点名として使えます。</p>

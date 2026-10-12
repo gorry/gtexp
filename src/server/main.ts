@@ -174,7 +174,12 @@ function handleExport(db: DatabaseSync, p: URLSearchParams, res: ServerResponse)
 
 /** 住所・地点名の割り当ての設定 */
 function assignOptions(config: Config): AssignOptions {
-  return { isjDir: config.isjDir, takeout: { sameM: config.takeoutSameM, nearM: config.takeoutNearM, labelM: config.takeoutLabelM } };
+  return {
+    isjDir: config.isjDir,
+    takeout: { sameM: config.takeoutSameM, nearM: config.takeoutNearM, labelM: config.takeoutLabelM },
+    labelStopM: config.labelStopM,
+    tzOffsetMinutes: config.tzOffsetMinutes,
+  };
 }
 
 /** ログイン失敗が続いたら待たせる（パスワード総当たり対策） */

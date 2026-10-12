@@ -29,6 +29,8 @@ export interface Config {
   takeoutNearM: number;
   /** Takeout のラベルを付けた場所を割り当てる距離（m） */
   takeoutLabelM: number;
+  /** ラベルを付けた場所に、経路の点がこの距離（m）以内に来たら立ち寄ったとみなす */
+  labelStopM: number;
   /** OpenStreetMap（Nominatim）の問い合わせ先。住所に使う（施設名は手元のデータから） */
   osmEndpoint: string;
   /** Nominatim の規約で必要な、アプリを識別できる User-Agent */
@@ -49,6 +51,7 @@ const defaults: Config = {
   takeoutSameM: 2,
   takeoutNearM: 30,
   takeoutLabelM: 30,
+  labelStopM: 50,
   osmEndpoint: 'https://nominatim.openstreetmap.org',
   osmUserAgent: `${PROFILE.shortTitle}/${PROFILE.version} (${PROFILE.title}; personal use)`,
 };

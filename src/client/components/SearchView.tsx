@@ -5,7 +5,7 @@ import { ACTIVITY_TYPES, WEEKDAYS, activityLabel, duration, hhmm, km, semanticLa
 import { BarChart, BarList, type Bar } from './BarChart';
 import { ExportLinks } from './ExportLinks';
 import { visitName } from './MapView';
-import { TagList } from './NoteForm';
+import { TagList, EstimatedChip } from './NoteForm';
 import { PeriodPicker } from './PeriodPicker';
 
 const PAGE = 100;
@@ -355,6 +355,7 @@ function VisitRow({ v }: { v: Visit }) {
       <a href={`#/place/${encodeURIComponent(v.placeId)}`}>{visitName(v)}</a>
       {v.note?.name && label && <span class="chip">{label}</span>}
       {v.hierarchyLevel > 0 && <span class="chip">入れ子</span>}
+      {v.estimated && <EstimatedChip />}
       {v.note && <TagList tags={v.note.tags} />}
     </li>
   );

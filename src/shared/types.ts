@@ -78,6 +78,8 @@ export interface Visit {
   probability: number;
   /** 0 が主な滞在、1 以上は同じ時間帯の入れ子の場所 */
   hierarchyLevel: number;
+  /** 元データにない推定の滞在（ラベルを付けた場所への立ち寄り） */
+  estimated: boolean;
   note: PlaceNote | null;
   /** いちばん良い住所（取得方法の優先順） */
   address: PlaceLabel | null;
@@ -167,6 +169,8 @@ export interface SummaryResponse {
     labelPlaces: number;
     reviewPlaces: number;
     mymapPlaces: number;
+    /** ラベルを付けた場所への、経路から推定した立ち寄り（推定の滞在）の数 */
+    labelStops: number;
   };
   /** Foursquare Swarm の状態（チェックインの件数・店の数・店の名前が付いた地点の数・入れた日時） */
   swarm: { checkins: number; venues: number; places: number; loadedAt: string | null };
@@ -225,6 +229,8 @@ export interface PlaceVisit {
   startMs: number;
   endMs: number;
   hierarchyLevel: number;
+  /** 元データにない推定の滞在（ラベルを付けた場所への立ち寄り） */
+  estimated: boolean;
   /** 入れ子の滞在のとき、その時間を含む主な滞在の場所（名前を「（○○内）」と添えるため）。見つからなければ null */
   parent?: VisitParent | null;
 }

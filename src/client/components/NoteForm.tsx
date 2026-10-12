@@ -69,3 +69,12 @@ export function TagList({ tags }: { tags: string[] }) {
     </span>
   );
 }
+
+/** 元データにない、経路から推定した立ち寄り */
+export function EstimatedChip() {
+  return (
+    <span class="chip" title="タイムラインには滞在として記録されていないが、経路がラベルを付けた場所の近くを通った（立ち寄りと推定）">
+      推定
+    </span>
+  );
+}

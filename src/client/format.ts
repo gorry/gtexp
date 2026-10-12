@@ -89,7 +89,8 @@ export function todayIn(tzOffsetMinutes: number): string {
 
 // 「ChIJAAAAAAAAAAAR」で始まる placeId は自宅など非公開の場所で、Google マップでは開けない
 function isPublicPlaceId(placeId: string | undefined): placeId is string {
-  return !!placeId && !placeId.startsWith('ChIJAAAAAAAAAAAR');
+  // label: で始まるのは、ラベルを付けた場所への推定の立ち寄りのために作った場所（Google の placeId ではない）
+  return !!placeId && !placeId.startsWith('ChIJAAAAAAAAAAAR') && !placeId.startsWith('label:');
 }
 
 export function googleMapsUrl(lat: number, lng: number, placeId?: string): string {

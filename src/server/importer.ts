@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { transaction } from './db';
+import { rebuildPlaces, transaction } from './db';
 import { assignForImport, type AssignOptions } from './areas';
 import type { AssignStats } from '../shared/types';
 
@@ -141,19 +141,4 @@ export function importTimeline(
   // 地点に住所を割り当てる：新しい地点と、位置参照情報を入れ直したあとにまだ調べ直していない地点（位置参照情報が入っていれば）
   stats.addresses = assignForImport(db, assignOpts);
   return stats;
-}
-
-/** 滞在記録から場所ごとの集計を作り直す。座標と種類は最後に行ったときのものを使う */
-function rebuildPlaces(db: DatabaseSync): void {
-  db.exec(`
-    DELETE FROM places;
-    INSERT INTO places (place_id, lat, lng, semantic_type, visit_count, first_ms, last_ms)
-    SELECT place_id, lat, lng, semantic_type, cnt, first_ms, last_ms FROM (
-      SELECT place_id, lat, lng, semantic_type,
-        COUNT(*) OVER w AS cnt, MIN(start_ms) OVER w AS first_ms, MAX(start_ms) OVER w AS last_ms,
-        ROW_NUMBER() OVER (PARTITION BY place_id ORDER BY start_ms DESC) AS rn
-      FROM visits
-      WINDOW w AS (PARTITION BY place_id)
-    ) WHERE rn = 1;
-  `);
 }

@@ -4,7 +4,7 @@ import { api } from '../api';
 import { activityLabel, addDays, visitNumbers, dateLabel, duration, googleEarthUrl, googleMapsUrl, km, semanticLabel, timeOnDay, todayIn } from '../format';
 import { Calendar } from './Calendar';
 import { MapView, areaHint, visitName } from './MapView';
-import { NoteForm, TagList } from './NoteForm';
+import { NoteForm, TagList, EstimatedChip } from './NoteForm';
 
 interface Props {
   date: string;
@@ -134,6 +134,7 @@ function VisitItem({ v, no, date, selected, onSelect, onNote }: {
         <div class="visit-time">
           {timeOnDay(v.start, date)} 〜 {timeOnDay(v.end, date)}
           <span class="muted">（{duration(v.startMs, v.endMs)}）</span>
+          {v.estimated && <EstimatedChip />}
         </div>
         <div class="visit-name">
           <a href={`#/place/${encodeURIComponent(v.placeId)}`} onClick={(e) => e.stopPropagation()} title="この場所の記録を見る">

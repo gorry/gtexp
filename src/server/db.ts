@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS visits (
   lng REAL NOT NULL,
   probability REAL,
   place_probability REAL,
-  hierarchy_level INTEGER
+  hierarchy_level INTEGER,
+  -- 1 は元データにない推定の滞在（ラベルを付けた場所への立ち寄り。labelstops.ts が作り直す）
+  estimated INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS visits_time ON visits(start_ms, end_ms);
 CREATE INDEX IF NOT EXISTS visits_place ON visits(place_id);
@@ -295,6 +297,9 @@ export function openUserDb(dataDir: string, user: string): DatabaseSync {
     db.close();
     throw new Error(`${user} の DB に全員で使うテーブル（${wrong.join(', ')}）があります`);
   }
+  // 前の版で作った DB には、あとから足した列がない
+  const visitCols = (db.prepare('PRAGMA table_info(visits)').all() as any[]).map((r) => r.name as string);
+  if (visitCols.length && !visitCols.includes('estimated')) db.exec('ALTER TABLE visits ADD COLUMN estimated INTEGER NOT NULL DEFAULT 0');
   db.exec(SCHEMA);
   db.prepare('ATTACH DATABASE ? AS shared').run(sharedDbPath(dataDir));
   db.exec('PRAGMA shared.journal_mode = WAL;');
@@ -303,6 +308,21 @@ export function openUserDb(dataDir: string, user: string): DatabaseSync {
 
 import { transaction } from './tx';
 export { transaction };
+
+/** 滞在記録から場所ごとの集計を作り直す。座標と種類は最後に行ったときのもの（推定の滞在より元データの滞在を優先） */
+export function rebuildPlaces(db: DatabaseSync): void {
+  db.exec(`
+    DELETE FROM places;
+    INSERT INTO places (place_id, lat, lng, semantic_type, visit_count, first_ms, last_ms)
+    SELECT place_id, lat, lng, semantic_type, cnt, first_ms, last_ms FROM (
+      SELECT place_id, lat, lng, semantic_type,
+        COUNT(*) OVER w AS cnt, MIN(start_ms) OVER w AS first_ms, MAX(start_ms) OVER w AS last_ms,
+        ROW_NUMBER() OVER (PARTITION BY place_id ORDER BY estimated, start_ms DESC) AS rn
+      FROM visits
+      WINDOW w AS (PARTITION BY place_id)
+    ) WHERE rn = 1;
+  `);
+}
 
 type Row = Record<string, any>;
 
@@ -348,6 +368,7 @@ function toVisit(r: Row): Visit {
     lng: r.lng,
     probability: r.probability,
     hierarchyLevel: r.hierarchy_level ?? 0,
+    estimated: r.estimated === 1,
     note: parseNote(r),
     address: parseAddress(r),
     placeName: parsePlaceName(r),
@@ -476,6 +497,7 @@ export function getSummary(db: DatabaseSync): SummaryResponse {
       labelPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-label'").get() as Row).n,
       reviewPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-review'").get() as Row).n,
       mymapPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-mymap'").get() as Row).n,
+      labelStops: (db.prepare('SELECT COUNT(*) AS n FROM visits WHERE estimated = 1').get() as Row).n,
     },
     swarm: swarmStatus(db),
     osm: { ...osmAddrStatus(db), ...osmPoiStatus(db), poiPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'osm-poi'").get() as Row).n },
@@ -648,7 +670,7 @@ export function getPlace(db: DatabaseSync, placeId: string): PlaceDetailResponse
     .get(placeId) as Row | undefined;
   if (!place) return null;
   const visits = db
-    .prepare('SELECT id, start_local, end_local, start_ms, end_ms, hierarchy_level FROM visits WHERE place_id = ? ORDER BY start_ms DESC')
+    .prepare('SELECT id, start_local, end_local, start_ms, end_ms, hierarchy_level, estimated FROM visits WHERE place_id = ? ORDER BY start_ms DESC')
     .all(placeId)
     .map((r: Row): PlaceVisit => ({
       id: r.id,
@@ -657,6 +679,7 @@ export function getPlace(db: DatabaseSync, placeId: string): PlaceDetailResponse
       startMs: r.start_ms,
       endMs: r.end_ms,
       hierarchyLevel: r.hierarchy_level,
+      estimated: r.estimated === 1,
     }));
   // 入れ子の滞在には、その時間を含む外側の滞在（階層がいちばん近く、短いもの）の場所を添える
   const parentOf = db.prepare(

@@ -4,7 +4,7 @@ import { api } from '../api';
 import { areaFull, duration, googleEarthUrl, googleMapsUrl, hhmm, semanticLabel, shortDate, totalDuration } from '../format';
 import { PIN_COLORS, PIN_DEFAULT, useGoogleMap } from '../maps';
 import { visitName } from './MapView';
-import { NoteForm, TagList, hashtag } from './NoteForm';
+import { NoteForm, TagList, hashtag, EstimatedChip } from './NoteForm';
 
 export function PlaceView({ placeId, config }: { placeId: string; config: ClientConfig }) {
   const [data, setData] = useState<PlaceDetailResponse | null>(null);
@@ -103,6 +103,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
                     <a href={`#/day/${v.start.slice(0, 10)}`}>{shortDate(v.start.slice(0, 10))}</a>
                     <span class="muted">
                       {' '}{hhmm(v.start)}〜{v.start.slice(0, 10) === v.end.slice(0, 10) ? '' : `${Number(v.end.slice(5, 7))}/${Number(v.end.slice(8, 10))} `}{hhmm(v.end)}（{duration(v.startMs, v.endMs)}）
+                      {v.estimated && <EstimatedChip />}
                       {/* 入れ子の滞在には、外側の場所を添える（その場所の詳細へのリンク） */}
                       {v.hierarchyLevel > 0 &&
                         (v.parent ? (
