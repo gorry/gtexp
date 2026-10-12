@@ -13,7 +13,9 @@ import { rebuildPlaces } from './db';
 // - ラベルから STOP_M（設定 labelStopM、既定 50m）以内の点が来たら立ち寄りを始め、LEAVE_M より遠い点が来るか、
 //   点の間が MAX_GAP_MS あいたら終える。間が MERGE_MS 以内の立ち寄りは 1 つにまとめる。点が 1 つだけでもよい
 //   - 端末は動かないと点を記録しないので、点が GAP_EXTEND_MS 以上途切れたあとに遠い点が来たときは、その遠い点の時刻まで
-//     そこにいたものとする（途切れた間を立ち寄りに含める）
+//     そこにいたものとする（途切れた間を立ち寄りに含める）。ただし、その間に別の場所（LEAVE_M より遠く）の本当の滞在が
+//     始まっていたら、そこまで
+//   - 間に別の場所の本当の滞在がある 2 つの立ち寄りは、MERGE_MS 以内でもまとめない（出かけて戻ってきたため）
 //   - 移動の始まり・終わりの位置は、前後 ENDPOINT_CHECK_MS の経路の点が LEAVE_M より遠くにあれば使わない（長時間動かない
 //     移動の終わりの位置が、実際にはもう離れた時刻のものになっていることがあるため）
 // - その場所の本当の滞在（STOP_M 以内の滞在先）と、前後 COVERED_MARGIN_MS の範囲で重なる立ち寄りは足さない
@@ -100,6 +102,15 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
     const offsetAt = db.prepare(
       'SELECT COALESCE((SELECT utc_offset_min FROM activities WHERE start_ms <= ? AND utc_offset_min IS NOT NULL ORDER BY start_ms DESC LIMIT 1), ?) AS o',
     );
+    // 別の場所の本当の滞在（時間の範囲で探す）
+    const realBetween = db.prepare('SELECT start_ms, lat, lng FROM visits WHERE estimated = 0 AND start_ms < ? AND end_ms > ? ORDER BY start_ms');
+    /** from〜to の間に、(lat, lng) から LEAVE_M より遠い本当の滞在があれば、その始まり（なければ null） */
+    const awayVisitStart = (lat: number, lng: number, from: number, to: number): number | null => {
+      for (const v of realBetween.all(to, from) as any[]) {
+        if (distM(lat, lng, v.lat, v.lng) > LEAVE_M) return Math.max(v.start_ms, from);
+      }
+      return null;
+    };
     const ins = db.prepare(
       `INSERT INTO visits (start_ms, end_ms, start_local, end_local, local_date, utc_offset_min,
          place_id, semantic_type, lat, lng, probability, place_probability, hierarchy_level, estimated)
@@ -117,7 +128,7 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
         const d = p.lat < s1 || p.lat > n1 || p.lng < w1 || p.lng > e1 ? Infinity : distM(l.lat, l.lng, p.lat, p.lng);
         if (cur && (d > LEAVE_M || p.t - last > MAX_GAP_MS)) {
           // 点が途切れたあとに離れた点が来たら、途切れた間もそこにいたものとする
-          if (d > LEAVE_M && p.t - last >= GAP_EXTEND_MS && p.t - last <= MAX_GAP_MS) cur[1] = p.t;
+          if (d > LEAVE_M && p.t - last >= GAP_EXTEND_MS && p.t - last <= MAX_GAP_MS) cur[1] = awayVisitStart(l.lat, l.lng, last, p.t) ?? p.t;
           stops.push(cur);
           cur = null;
         }
@@ -132,7 +143,7 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
       const merged: [number, number][] = [];
       for (const s of stops) {
         const prev = merged[merged.length - 1];
-        if (prev && s[0] - prev[1] <= MERGE_MS) prev[1] = s[1];
+        if (prev && s[0] - prev[1] <= MERGE_MS && awayVisitStart(l.lat, l.lng, prev[1], s[0]) == null) prev[1] = s[1];
         else merged.push([...s]);
       }
 
