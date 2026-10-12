@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PROFILE } from '../../shared/profile.gen';
-import type { ImportRecord, SummaryResponse, TakeoutImportResult } from '../../shared/types';
+import type { ImportRecord, SummaryResponse, TakeoutImportStats, ZipImportResult } from '../../shared/types';
 import { api, uploadExport, uploadTakeout, type ImportResult, type UploadStage } from '../api';
 import { assignSummary } from '../format';
 import { clearCalendarCache } from './Calendar';
@@ -41,10 +41,10 @@ function AdminNote({ text }: { text: string }) {
   );
 }
 
-/** Takeout の zip か（それ以外はタイムラインのエクスポートとして送る） */
+/** Takeout か Swarm の zip か（それ以外はタイムラインのエクスポートとして送る） */
 const isZip = (name: string, type: string) => /\.zip$/i.test(name) || /zip/.test(type);
 
-const TAKEOUT_KIND_LABELS: Record<TakeoutImportResult['replaced'][number], string> = {
+const TAKEOUT_KIND_LABELS: Record<TakeoutImportStats['replaced'][number], string> = {
   saved: '保存した場所',
   labeled: 'ラベルを付けた場所',
   lists: '保存リスト',
@@ -63,7 +63,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   const [history, setHistory] = useState<ImportRecord[]>([]);
   const [progress, setProgress] = useState<{ stage: UploadStage; ratio: number } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
-  const [takeoutResult, setTakeoutResult] = useState<TakeoutImportResult | null>(null);
+  const [takeoutResult, setTakeoutResult] = useState<ZipImportResult | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState('');
   const [error, setError] = useState(query.get('share') === 'failed' ? '共有されたファイルを受け取れませんでした。下のボタンからファイルを選んでください。' : '');
@@ -74,7 +74,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   };
 
   /**
-   * 選んだファイルを送る。zip は Google Takeout としてまとめて 1 回で（書き出しが複数の zip に分かれていることがあるため）、
+   * 選んだファイルを送る。zip は Google Takeout か Swarm としてまとめて 1 回で（書き出しが複数の zip に分かれていることがあるため。
+   * どちらかはサーバーが中身で決める）、
    * それ以外はタイムラインのエクスポートとして 1 つずつ送る
    */
   const upload = async (files: { blob: Blob; name: string }[]) => {
@@ -154,7 +155,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
 
       <section class="card">
         <h3>ファイルを送る</h3>
-        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout の書き出し（.zip）を送れます。両方を一度に選んでもかまいません。</p>
+        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout・Foursquare Swarm の書き出し（.zip）を送れます。まとめて選んでもかまいません。</p>
         <label class={`file-button${progress ? ' disabled' : ''}`}>
           ファイルを選ぶ
           <input
@@ -186,12 +187,22 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
         )}
         {takeoutResult && (
           <p class="success">
-            Google Takeout を取り込みました（{takeoutResult.replaced.map((k) => TAKEOUT_KIND_LABELS[k]).join('・')}を置き換え
-            {takeoutResult.replaced.length < 5 && '。zip に入っていなかった種類は前のまま'}）
-            <br />
-            保存した場所 {takeoutResult.saved.toLocaleString()} 件・ラベルを付けた場所 {takeoutResult.labeled.toLocaleString()} 件・
-            保存リスト {takeoutResult.lists.length} 個（{takeoutResult.listEntries.toLocaleString()} 件）・クチコミ {takeoutResult.reviews.toLocaleString()} 件・
-            マイマップ {takeoutResult.mymaps} 個（地点 {takeoutResult.mymapPoints.toLocaleString()} か所）
+            {takeoutResult.takeout && (
+              <>
+                Google Takeout を取り込みました（{takeoutResult.takeout.replaced.map((k) => TAKEOUT_KIND_LABELS[k]).join('・')}を置き換え
+                {takeoutResult.takeout.replaced.length < 5 && '。zip に入っていなかった種類は前のまま'}）
+                <br />
+                保存した場所 {takeoutResult.takeout.saved.toLocaleString()} 件・ラベルを付けた場所 {takeoutResult.takeout.labeled.toLocaleString()} 件・
+                保存リスト {takeoutResult.takeout.lists.length} 個（{takeoutResult.takeout.listEntries.toLocaleString()} 件）・クチコミ {takeoutResult.takeout.reviews.toLocaleString()} 件・
+                マイマップ {takeoutResult.takeout.mymaps} 個（地点 {takeoutResult.takeout.mymapPoints.toLocaleString()} か所）
+              </>
+            )}
+            {takeoutResult.takeout && takeoutResult.swarm && <br />}
+            {takeoutResult.swarm && (
+              <>
+                Swarm のチェックインを取り込みました：{takeoutResult.swarm.checkins.toLocaleString()} 件（店 {takeoutResult.swarm.venues.toLocaleString()} か所）
+              </>
+            )}
             {takeoutResult.addresses.checked > 0 && (
               <>
                 <br />
@@ -232,6 +243,21 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <p class="muted">
             zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（既定 2m 以内）か、
             同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
+          </p>
+        </details>
+        <details class="help">
+          <summary>Foursquare Swarm の書き出しかた</summary>
+          <p class="muted">Swarm でチェックインした店の名前を、地点名として使えます。</p>
+          <ol>
+            <li>
+              Foursquare のアカウントの設定から、データのエクスポートを頼む。届いた zip をダウンロードする
+            </li>
+            <li>この画面の「ファイルを選ぶ」で zip を送る（Takeout の zip と一緒に選んでもよい）</li>
+          </ol>
+          <p class="muted">
+            使うのはチェックインだけです（zip そのものはサーバーに残さず、毎回全部を置き換えます）。チェックインした時刻にいた滞在先を探し、
+            その場所でいちばん多くチェックインした店の名前を付けます。同じ時刻の滞在先が複数あれば、チェックインした位置にいちばん近いもの（300m 以内）です。
+            時刻の合う滞在先がなければ、前後 10 分の滞在先（150m 以内）から探します。
           </p>
         </details>
       </section>
@@ -279,6 +305,23 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             </ul>
           ) : (
             <p>まだ入れていません。上の「ファイルを送る」で Takeout の zip を送ると、Google マップで保存した場所やラベルの名前を地点名として使えます。</p>
+          )}
+        </section>
+      )}
+
+      {summary && (
+        <section class="card">
+          <h3>地点名（Foursquare Swarm）</h3>
+          {summary.swarm.loadedAt ? (
+            <ul class="stats">
+              <li>
+                チェックイン {summary.swarm.checkins.toLocaleString()} 件（店 {summary.swarm.venues.toLocaleString()} か所）
+                （{new Date(summary.swarm.loadedAt).toLocaleDateString()} に入れたデータ）
+              </li>
+              <li>店の名前が付いた地点：{summary.swarm.places.toLocaleString()} か所</li>
+            </ul>
+          ) : (
+            <p>まだ入れていません。上の「ファイルを送る」で Swarm の書き出しの zip を送ると、チェックインした店の名前を地点名として使えます。</p>
           )}
         </section>
       )}

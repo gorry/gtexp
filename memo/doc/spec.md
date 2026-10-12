@@ -7,7 +7,7 @@
 - 画面に出す名前は、次の順で最初に見つかったもの
   1. 自分で付けた名前（place_notes）
   2. 自宅・職場などの種類
-  3. **いちばん良い地点名**（Google Takeout のラベル・保存した場所、OpenStreetMap の施設名。取得方法の優先順）
+  3. **いちばん良い地点名**（Google Takeout のラベル・保存した場所、Foursquare Swarm のチェックイン、OpenStreetMap の施設名。取得方法の優先順）
   4. **いちばん良い住所**（下の取得方法の優先順）の短い表記（例：千代田区丸の内一丁目）
   5. 「名前なし」
 - 名前と別に住所があれば、一覧などで名前の下に添える
@@ -23,6 +23,7 @@
 |---|---|---|---|
 | `takeout-label` | 地点名 | Google Takeout の「ラベルを付けた場所」。30m 以内（設定 `takeoutLabelM`） | 10 |
 | `takeout-saved` | 地点名 | Google Takeout の「保存した場所」の店名。同じ場所とみなす 2m 以内（設定 `takeoutSameM`）。同じ場所の滞在先がない店は、30m 以内（設定 `takeoutNearM`）でいちばん近い滞在先 1 か所にだけ付ける（ほかの店が付いている滞在先は使わない。2 店が同じ滞在先を選んだら近いほう）。保存リスト・コメント・保存日・Google マップのリンクも持つ | 20 |
+| `swarm-checkin` | 地点名 | Foursquare Swarm のチェックインした店。チェックインの時刻を含む滞在先（端末の位置から 300m 以内）。場所ごとに、いちばん多くチェックインした店 | 22 |
 | `takeout-review` | 地点名 | Google Takeout の「クチコミ」を書いた店。店ごとに、30m 以内（設定 `takeoutNearM`）でいちばん近い滞在先 1 か所にだけ付ける。評価・本文・書いた日も持つ | 25 |
 | `takeout-addr` | 住所 | 同じ保存した場所の住所（番地まで） | 30 |
 | `takeout-mymap` | 地点名 | Google Takeout の「マイマップ」の地点。地点ごとに、30m 以内（設定 `takeoutLabelM`）でいちばん近い滞在先 1 か所にだけ付ける。名前が座標だけの地点は使わない。地図・フォルダーの名前とメモも持つ | 35 |
@@ -30,6 +31,18 @@
 | `isj-oaza` | 住所 | 国土交通省「位置参照情報」（大字・町丁目レベル）。いちばん近い代表点の町丁目（10km 以内）。境界の近くでは隣の町丁目になることがある | 50 |
 | `osm-poi` | 地点名 | OpenStreetMap（手元に置いた日本のデータ）。60m 以内の名前の付いた店・施設・駅など | 60 |
 | `osm-addr` | 住所 | OpenStreetMap（Nominatim）。海外の地点にも付く | 60 |
+
+### Foursquare Swarm（swarm-checkin）
+- Swarm アプリの「データのエクスポート」の zip。自分のデータを書き出したものなので、保存してよい
+- 使うのはチェックイン（`checkins1.json`, `checkins2.json` …）だけ。店の名前・店の ID と URL・端末の位置（lat・lng と精度 hacc）・時刻（`createdAt`、UTC）・時差（`timeZoneOffset`、分）・ひとこと（`shout`）・イベントの名前がある。店のないもの・位置のないものは使わない
+  - 自動で検出された訪問（`unconfirmed_visits.json`）は使わない。チェックインと同じ時刻のものと比べると、店が一致したのは 56% だけだった。`visits.json` には店の名前がない
+- **データを入れる**（書き出し直したときだけ）：利用者が取り込み画面の「ファイルを選ぶ」で zip を送る（Takeout と同じ `POST /api/takeout`。Takeout の zip と混ざっていてもよく、チェックインのファイルがある zip を Swarm とみなす。Swarm の zip は 1 回に 1 つまで）。入れたあとすぐ地点への割り当ても行う。管理者はコマンド `server.mjs import-swarm <zip>` でも入れられる
+  - zip は残さない。チェックインのファイルだけを `data/users/<利用者名>/swarm/` に置き（毎回全部置き換え。書き出しには毎回全期間が入っている）、そこから DB（`swarm_checkins`）に入れ直し、入れた日時を kv に記録する
+- **地点に割り当てる**：Takeout と同じく、取り込みのたびと「今すぐ調べる」で。滞在が変わると割り当ても変わるので、調べる地点があれば全体を付け直す
+  - Google のタイムラインと同じ端末で記録しているので、チェックインの時刻を含む滞在先を探し、その場所をチェックインした店とする。時刻を含む滞在先が複数（入れ子の滞在など）あれば、端末の位置にいちばん近いもの（300m 以内）。時刻を含む滞在先がなければ、前後 10 分の滞在先のうち近いもの（150m 以内）
+  - 場所ごとに、いちばん多くチェックインした店の名前を付ける（同じ回数なら最後にチェックインした店）。細かい項目に、その店のチェックインの回数・最初と最後の日（その土地の日付）・ひとこと・イベント・Foursquare の URL と、ほかにチェックインした店（同じ建物の別の店など）と回数を持つ。基準点からの距離は、その店のチェックインの位置のうちいちばん近いもの
+  - 優先順位は Takeout の保存した場所の次。保存した場所（Google の場所そのものの名前）と同じ場所で比べると、同じ建物の別の店を指していることがあるため
+- 場所の詳細に、チェックインの回数と期間・ひとこと・イベント・Foursquare のリンク・ほかにチェックインした店を出す
 
 ### 位置参照情報（isj-oaza / isj-gaiku）
 - 配布：位置参照情報ダウンロードサービス（国土交通省） https://nlftp.mlit.go.jp/isj/ 。都道府県ごとの zip（中は CSV）。利用条件は公共データ利用規約（PDL1.0）で、出典の表示が必要
@@ -207,12 +220,12 @@ URL の `#` 以降で画面を切り替える。
 - OSM のチェーン店は、名前にチェーン名だけが入っていて支店名がないものが多く、名前では見つからないことがある。支店名が `branch` タグに分かれているものは、施設を入れるときに名前につなげる
 
 ### 取り込み
-- 利用者が入れるデータ（自分のタイムラインのエクスポートと Google Takeout の書き出し）は、この画面の「ファイルを選ぶ」で送る。管理者が入れるデータ（位置参照情報・OpenStreetMap）は、この画面では状態と出典だけを出し、入れかたは管理者向けの文書（`deploy/README.md`。画面からは GitHub の設置手順へリンク）に書く
+- 利用者が入れるデータ（自分のタイムラインのエクスポートと Google Takeout・Foursquare Swarm の書き出し）は、この画面の「ファイルを選ぶ」で送る。管理者が入れるデータ（位置参照情報・OpenStreetMap）は、この画面では状態と出典だけを出し、入れかたは管理者向けの文書（`deploy/README.md`。画面からは GitHub の設置手順へリンク）に書く
 - いま入っているデータの概要（期間、滞在・場所・移動・経路の点・旅行の件数）
-- 「ファイルを選ぶ」は複数選べる。.zip は Google Takeout としてまとめて 1 回で送り（`POST /api/takeout`）、それ以外はタイムラインのエクスポートとして 1 つずつ送る（`POST /api/import`）。素の JSON はブラウザで gzip 圧縮してから送る（10 分の 1 ほどになる）。圧縮中 / 送信中（進捗）/ 取り込み中 を表示
-- タイムラインのエクスポートのしかた（Android）と、Google Takeout の書き出しかたを、折りたたみで出す
+- 「ファイルを選ぶ」は複数選べる。.zip は Google Takeout か Swarm としてまとめて 1 回で送り（`POST /api/takeout`。どちらかはサーバーが中身で決める）、それ以外はタイムラインのエクスポートとして 1 つずつ送る（`POST /api/import`）。素の JSON はブラウザで gzip 圧縮してから送る（10 分の 1 ほどになる）。圧縮中 / 送信中（進捗）/ 取り込み中 を表示
+- タイムラインのエクスポートのしかた（Android）と、Google Takeout・Foursquare Swarm の書き出しかたを、折りたたみで出す
 - Android の「共有」から受け取ったファイル（.json / .gz / .zip）は、Service Worker が Cache Storage に置き、取り込み画面が取り出して送る
-- 位置参照情報・Google Takeout・OpenStreetMap の状態（件数、名前や住所が付いた地点の数）。まだ調べていない地点があれば「今すぐ調べる」
+- 位置参照情報・Google Takeout・Foursquare Swarm・OpenStreetMap の状態（件数、名前や住所が付いた地点の数）。まだ調べていない地点があれば「今すぐ調べる」
 - 取り込みの履歴
 
 ### 現在地（すべての地図）
@@ -236,7 +249,7 @@ URL の `#` 以降で画面を切り替える。
 | `GET /api/health` | ログイン不要。`{version, startedAt, builtAt, commit, dirty}`（動いているサーバーの版・起動した日時・起動したときの dist/server.mjs の日時・ビルドの元にしたコミットと、コミットしていない変更を含むか。check コマンドが今のビルドと比べ、「このアプリについて」が表示する） |
 | `GET /api/config` | `{mapsApiKey, mapId, tzOffsetMinutes}` |
 | `POST /api/import` | 本文がファイルそのもの（gzip 可、先頭2バイトで判定）。ヘッダー `X-File-Name` に元のファイル名（URL エンコード）。利用者ごとに同時に1件まで |
-| `POST /api/takeout` | Google Takeout の zip（multipart/form-data の `file`、複数可、合わせて 200MB まで）を入れ、地点への割り当てまで行う → 置き換えた種類・件数・保存リストの名前・割り当ての結果。zip に入っていた種類だけ置き換わる |
+| `POST /api/takeout` | Google Takeout か Foursquare Swarm の zip（multipart/form-data の `file`、複数可、混ざっていてもよい、合わせて 200MB まで）を入れ、地点への割り当てまで行う → `takeout`（置き換えた種類・件数・保存リストの名前）・`swarm`（チェックインと店の数）・割り当ての結果。送られなかったほうは null。Takeout は zip に入っていた種類だけ、Swarm は全部置き換わる |
 | `GET /api/imports` | 取り込みの履歴 |
 | `GET /api/summary` | 件数・期間・最後の取り込み |
 | `GET /api/day?date=YYYY-MM-DD` | その日に少しでもかかる滞在・移動・旅行と、その日の経路の点 |
@@ -284,6 +297,7 @@ URL の `#` 以降で画面を切り替える。
 | `takeout_places` | Takeout の保存した場所・ラベルを付けた場所・クチコミ | 触らない（`POST /api/takeout` か `import-takeout` で入れる） |
 | `takeout_lists` | Takeout の保存リスト | 触らない（`POST /api/takeout` か `import-takeout` で入れる） |
 | `takeout_mymaps` | Takeout のマイマップの地点 | 触らない（`POST /api/takeout` か `import-takeout` で入れる） |
+| `swarm_checkins` | Foursquare Swarm のチェックイン | 触らない（`POST /api/takeout` か `import-swarm` で入れる） |
 | `osm_pois` | OSM の名前の付いた施設（shared） | 触らない（`import-osm-poi` で入れる） |
 | `osm_poi_keys` | OSM の施設を名前で探す索引（保存リストの店の位置を探す。shared） | 触らない（`import-osm-poi`・`osm-poi-keys` で作る） |
 | `label_checks` | 地点の住所を取得方法ごとに調べた日時 | まだ調べていない地点などを調べて記録 |
@@ -305,7 +319,7 @@ URL の `#` 以降で画面を切り替える。
 
 `node dist/server.mjs <コマンド>` のように、展開したフォルダーで実行する。
 
-利用者の記録を扱うコマンド（`import`・`import-takeout`・`assign-areas`）は `--user <名前>` で利用者を選ぶ。利用者が 1 人だけなら省ける。
+利用者の記録を扱うコマンド（`import`・`import-takeout`・`import-swarm`・`assign-areas`）は `--user <名前>` で利用者を選ぶ。利用者が 1 人だけなら省ける。
 
 | コマンド | 内容 |
 |---|---|
@@ -318,6 +332,7 @@ URL の `#` 以降で画面を切り替える。
 | `import-isj <file...>` | 位置参照情報の zip を入れる（大字・町丁目は DB へ、街区は置き場所の確認だけ）。地点への割り当てはしない |
 | `assign-areas` | すべての地点の住所を付け直す（保守用。ふだんは取り込みのたびに自動） |
 | `import-takeout <zip..>` | Google Takeout の zip（フォルダーでもよい）から保存した場所・ラベル・保存リストを入れる。地点への割り当てはしない |
+| `import-swarm <zip>` | Foursquare Swarm の書き出しの zip からチェックインを入れる。地点への割り当てはしない |
 | `import-osm-poi <file>` | OSM の名前の付いた施設（osmium export -f geojsonseq の出力）を入れる。地点への割り当てはしない |
 | `osm-poi-keys` | 入れてある OSM の施設から、名前で探す索引だけを作り直す（`import-osm-poi` でも作る） |
 | `fetch-osm [--user 名前] [--limit N] [--min-wait S] [--max-wait S]` | Nominatim から、まだ調べていない地点の住所を最大 N 件（既定 150）取る。--user がなければ全員の分を順に回しながら。間隔は既定 15〜25 秒（下限 15 秒） |

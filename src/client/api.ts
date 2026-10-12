@@ -16,7 +16,7 @@ import type {
   TripDetailResponse,
   TripsResponse,
   SummaryResponse,
-  TakeoutImportResult,
+  ZipImportResult,
 } from '../shared/types';
 
 export class ApiError extends Error {
@@ -132,10 +132,10 @@ function sendWithProgress<T>(url: string, body: XMLHttpRequestBodyInit, headers:
   });
 }
 
-/** Google Takeout の zip を送る（書き出しが複数の zip に分かれているときは、まとめて送る） */
-export function uploadTakeout(files: Blob[], names: string[], onProgress: (stage: UploadStage, ratio: number) => void): Promise<TakeoutImportResult> {
+/** Google Takeout・Swarm の zip を送る（書き出しが複数の zip に分かれているときは、まとめて送る） */
+export function uploadTakeout(files: Blob[], names: string[], onProgress: (stage: UploadStage, ratio: number) => void): Promise<ZipImportResult> {
   const form = new FormData();
   files.forEach((f, i) => form.append('file', f, names[i]));
   onProgress('upload', 0);
-  return sendWithProgress<TakeoutImportResult>('/api/takeout', form, {}, onProgress);
+  return sendWithProgress<ZipImportResult>('/api/takeout', form, {}, onProgress);
 }

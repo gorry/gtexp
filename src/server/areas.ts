@@ -5,6 +5,7 @@ import { transaction } from './tx';
 import { readZip } from './zip';
 import { assignOsmPoi } from './osmpoi';
 import { assignTakeout, TAKEOUT_SOURCES, type TakeoutOptions } from './takeout';
+import { assignSwarm, SWARM_SOURCE } from './swarm';
 import { sourceName } from './labels';
 import type { AssignStats } from '../shared/types';
 import { distM, getKv, loadedKey, markChecked, pendingTargets, setKv, upsertLabel, type Target } from './labelstore';
@@ -399,6 +400,9 @@ function runAssign(db: DatabaseSync, opts: AssignOptions, targetsOf: (source: st
   const tk = Object.fromEntries(TAKEOUT_SOURCES.map((s) => [s, take(s)])) as Record<(typeof TAKEOUT_SOURCES)[number], Target[]>;
   const tr = assignTakeout(db, tk, opts.takeout);
   for (const name of TAKEOUT_SOURCES) add(name, tk[name], tr[name]);
+  // Foursquare Swarm のチェックイン
+  const swarmT = take(SWARM_SOURCE);
+  add(SWARM_SOURCE, swarmT, assignSwarm(db, swarmT));
   return { checked: seen.size, bySource };
 }
 
@@ -407,7 +411,7 @@ export function areaStatus(db: DatabaseSync): { areas: number; prefectures: numb
   const count = (source: string) => (db.prepare('SELECT COUNT(*) AS n FROM place_labels WHERE source = ?').get(source) as any).n as number;
   // 次のタイムラインの取り込みで調べる地点の数
   const pending = new Set(
-    [OAZA, GAIKU, 'osm-poi', ...TAKEOUT_SOURCES].flatMap((s) => pendingTargets(db, s)).map((t) => t.place_id),
+    [OAZA, GAIKU, 'osm-poi', ...TAKEOUT_SOURCES, SWARM_SOURCE].flatMap((s) => pendingTargets(db, s)).map((t) => t.place_id),
   ).size;
   return { areas: r.n, prefectures: r.p, places: count(OAZA), gaikuPlaces: count(GAIKU), pending };
 }

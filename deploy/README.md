@@ -125,7 +125,7 @@ node dist/server.mjs user-add alice     # 利用者を追加する（パスワ�
 | `node dist/server.mjs user-del <名前>` | 対象ユーザーのログインを無効化する。記録のフォルダーは残るため、不要であれば手動で削除する |
 | `node dist/server.mjs user-list` | 利用者の一覧 |
 
-利用者の記録を扱うコマンド（`import`・`import-takeout`・`assign-areas`）は、利用者が 2 人以上いる場合は `--user <名前>` を付けます。
+利用者の記録を扱うコマンド（`import`・`import-takeout`・`import-swarm`・`assign-areas`）は、利用者が 2 人以上いる場合は `--user <名前>` を付けます。
 `fetch-osm`（cron）は、全員の分を順に回しながら取得します。
 
 ## 4. 設置を確かめる
@@ -356,6 +356,17 @@ cd ~/gtexp && node dist/server.mjs import-takeout --user alice /path/to/takeout 
 ```
 
 保存した場所は、滞在先と同じ場所（既定 2m 以内）の場合に使います。同じ場所の滞在先がない保存した場所は、30m 以内でいちばん近い滞在先 1 か所にだけ付与します（ほかの保存した場所が付いている滞在先は使いません）。距離は設定ファイルの `takeoutSameM`・`takeoutNearM` で変更でき、変更後は `node dist/server.mjs assign-areas` で付け直します。
+
+## 12. Foursquare Swarm について
+
+Foursquare Swarm の書き出し（データのエクスポートの zip）も利用者ごとのデータで、Takeout と同じく利用者が画面の「ファイルを選ぶ」で送ります（Takeout の zip と一緒に選んでもかまいません。どちらかは zip の中身で判別します）。管理者の作業は要りません。
+zip そのものは残さず、チェックイン（`checkins1.json` など）だけを取り出して `data/users/<利用者名>/swarm/` に保存します（送り直すと全部置き換わります）。写真や、自動で検出された訪問は使いません。
+
+管理者がサーバー上の zip から入れることもできます。
+
+```sh
+cd ~/gtexp && node dist/server.mjs import-swarm --user alice /path/to/data-export.zip
+```
 
 ## バックアップ
 

@@ -147,6 +147,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
                       {l?.source === 'takeout-saved' && l.detail && <TakeoutDetail detail={l.detail} />}
                       {l?.source === 'takeout-review' && l.detail && <ReviewDetail detail={l.detail} />}
                       {l?.source === 'takeout-mymap' && l.detail && <MyMapDetail detail={l.detail} />}
+                      {l?.source === 'swarm-checkin' && l.detail && <SwarmDetail detail={l.detail} />}
                     </dd>
                   </>
                 );
@@ -246,6 +247,26 @@ function MyMapDetail({ detail }: { detail: Record<string, string> }) {
         マイマップ「<a href={`#/lists?list=${encodeURIComponent(`mymap:${detail.map}`)}`}>{detail.map}</a>」
         {detail.folder && `（${detail.folder}）`}
       </span>
+    </span>
+  );
+}
+
+/** Foursquare Swarm のチェックイン（回数と期間・ひとこと・イベント・ほかにチェックインした店・Foursquare のリンク） */
+function SwarmDetail({ detail }: { detail: Record<string, string> }) {
+  const period = detail.first === detail.last ? detail.first : `${detail.first} 〜 ${detail.last}`;
+  return (
+    <span class="takeout-detail">
+      {detail.shouts && <span class="visit-memo">{detail.shouts}</span>}
+      <span class="muted label-source">
+        チェックイン {detail.count} 回（{period}）
+        {detail.events && `・${detail.events}`}
+        {detail.url && (
+          <>
+            ・<a href={detail.url} target="_blank" rel="noopener">Foursquare で開く</a>
+          </>
+        )}
+      </span>
+      {detail.others && <span class="muted label-source">ほかにチェックインした店：{detail.others}</span>}
     </span>
   );
 }

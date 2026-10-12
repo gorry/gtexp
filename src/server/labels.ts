@@ -36,6 +36,12 @@ export const LABEL_SOURCES: LabelSource[] = [
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
+    id: 'swarm-checkin', name: 'Foursquare Swarm（チェックイン）', kind: 'name', priority: 22,
+    missingNote: 'この場所に滞在していた時刻のチェックインはありません',
+    needsData: true,
+    pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
+  },
+  {
     id: 'takeout-review', name: 'Google Takeout（クチコミを書いた場所）', kind: 'name', priority: 25,
     missingNote: '近く（既定 30m 以内）にクチコミを書いた場所はありません（クチコミの店ごとに、いちばん近い 1 か所だけに付けます）',
     needsData: true,

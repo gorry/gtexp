@@ -5,6 +5,7 @@ import { areaStatus, sourceStatuses } from './areas';
 import { osmAddrStatus } from './osm';
 import { osmPoiStatus } from './osmpoi';
 import { takeoutStatus } from './takeout';
+import { swarmStatus } from './swarm';
 import { ADDRESS_COLUMNS, NAME_COLUMNS, bestAddressJoin, bestNameJoin, labelLikeSql, labelOrderSql, sourceName } from './labels';
 import type {
   Activity,
@@ -184,6 +185,21 @@ CREATE TABLE IF NOT EXISTS takeout_mymaps (
   lng REAL
 );
 CREATE INDEX IF NOT EXISTS takeout_mymaps_map ON takeout_mymaps(map);
+
+-- Foursquare の Swarm アプリのチェックイン（swarm.ts）。時刻は UTC のミリ秒、tz_min はその土地の時差（分）、位置は端末の位置
+CREATE TABLE IF NOT EXISTS swarm_checkins (
+  id TEXT PRIMARY KEY,
+  at_ms INTEGER NOT NULL,
+  tz_min INTEGER,
+  venue_id TEXT NOT NULL,
+  venue_name TEXT NOT NULL,
+  venue_url TEXT NOT NULL,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  hacc REAL,
+  shout TEXT NOT NULL,
+  event TEXT NOT NULL
+);
 
 -- 地点の住所を取得方法ごとに調べた日時（見つからなかった場合も記録し、同じ地点を何度も探さないため）
 CREATE TABLE IF NOT EXISTS label_checks (
@@ -461,6 +477,7 @@ export function getSummary(db: DatabaseSync): SummaryResponse {
       reviewPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-review'").get() as Row).n,
       mymapPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'takeout-mymap'").get() as Row).n,
     },
+    swarm: swarmStatus(db),
     osm: { ...osmAddrStatus(db), ...osmPoiStatus(db), poiPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'osm-poi'").get() as Row).n },
   };
 }

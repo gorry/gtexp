@@ -14,11 +14,12 @@ import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getT
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
 import { importTakeoutZips } from './takeout';
+import { importSwarmZip, splitSwarmZips } from './swarm';
 import { errorDetail, fetchOsm, lookupOsm, osmRun } from './osm';
 import { importOsmPois } from './osmpoi';
 import { buildPoiKeys, listEntries, listNames } from './lists';
 import { CONTENT_TYPES, EXPORT_FORMATS, render, type ExportData, type ExportFormat } from './exporter';
-import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget } from '../shared/types';
+import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget, ZipImportResult } from '../shared/types';
 import { PROFILE } from '../shared/profile.gen';
 import { BUILD } from '../shared/build.gen';
 import { builtAt, runCheck, type Health } from './check';
@@ -239,12 +240,13 @@ function userDb(config: Config, user: string): DatabaseSync {
   return db;
 }
 
-/** Takeout の zip を受け取る上限。「マップ」「保存済み」だけなら数 MB。写真まで含めた書き出しは断る */
+/** Takeout・Swarm の zip を受け取る上限。「マップ」「保存済み」だけなら数 MB。写真まで含めた書き出しは断る */
 const TAKEOUT_MAX_BYTES = 200 * 1024 * 1024;
 
 /**
- * Google Takeout の zip（複数可。multipart/form-data の file）を受け取って入れる。zip は残さず、使うファイルだけを
- * 利用者のフォルダーの takeout/ に取り出す（zip に入っていた種類だけ置き換える）。
+ * Google Takeout か Foursquare Swarm の zip（複数可。混ざっていてもよい。multipart/form-data の file）を受け取って入れる。
+ * zip は残さず、使うファイルだけを利用者のフォルダーの takeout/（zip に入っていた種類だけ置き換える）か swarm/（全部置き換える）に取り出す。
+ * Swarm かどうかは zip の中身（チェックインのファイルがあるか）で決める。
  * 入れたあと、取り込みのときと同じ割り当てを行う（地点名がすぐ付くように）
  */
 async function handleTakeout(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
@@ -276,13 +278,19 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
       if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません`);
       writeFileSync(join(tmp, `${String(i + 1).padStart(2, '0')}_${file.name.replace(/[^\w.\-]/g, '_').slice(0, 100)}`), buf);
     }
-    let stats;
+    let result: Omit<ZipImportResult, 'ok' | 'addresses'>;
     try {
-      stats = importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), [tmp]);
+      const { swarm, others } = splitSwarmZips([tmp]);
+      if (swarm.length > 1) throw new Error('Swarm の zip は 1 つだけ送ってください（毎回、全期間のチェックインが入っています）');
+      result = {
+        takeout: others.length ? importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), others) : null,
+        swarm: swarm.length ? importSwarmZip(db, join(userDir(config.dataDir, user), 'swarm'), swarm[0]) : null,
+      };
     } catch (e) {
       throw new HttpError(400, (e as Error).message);
     }
-    return { ok: true, ...stats, addresses: assignForImport(db, assignOptions(config)) };
+    const body: ZipImportResult = { ok: true, ...result, addresses: assignForImport(db, assignOptions(config)) };
+    return body;
   } finally {
     importing.delete(user);
     rmSync(tmp, { recursive: true, force: true });
@@ -631,6 +639,15 @@ async function main(): Promise<void> {
       console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
       break;
     }
+    case 'import-swarm': {
+      // Foursquare Swarm の書き出しの zip から、チェックインを入れる（割り当てはしない）
+      const config = loadConfig();
+      const user = takeUser(openSharedDb(config.dataDir), args);
+      if (!args[0]) throw new Error('使い方: import-swarm [--user 名前] <Swarm の書き出しの zip>');
+      console.log(importSwarmZip(openUserDb(config.dataDir, user), join(userDir(config.dataDir, user), 'swarm'), args[0]));
+      console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
+      break;
+    }
     case 'import-osm-poi': {
       // osmium export -f geojsonseq で作った「名前の付いた施設」のファイルを入れる（全員で使うデータ。地点への割り当てはしない）
       if (!args[0]) throw new Error('使い方: import-osm-poi <施設の geojsonseq ファイル>');
@@ -681,6 +698,9 @@ ${PROFILE.copyright}
   import-takeout [--user 名前] <zip..>
                          Google Takeout の zip（フォルダーでもよい）から、保存した場所・ラベルを付けた場所・
                          保存リストを入れる。地点への割り当ては取り込みのたびにアプリが行う
+  import-swarm [--user 名前] <zip>
+                         Foursquare Swarm の書き出しの zip から、チェックインを入れる。
+                         地点への割り当ては取り込みのたびにアプリが行う
   import-osm-poi <file>  OpenStreetMap の名前の付いた施設（osmium export -f geojsonseq の出力）を入れる（全員で使う）
                          （deploy/make-osm-poi.sh が作って入れる）。地点への割り当ては取り込みのたびにアプリが行う
   osm-poi-keys           入れてある OSM の施設から、保存リストの店を名前で探す索引だけを作り直す

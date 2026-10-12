@@ -33,9 +33,16 @@ export interface AssignStats {
   bySource: { source: string; name: string; assigned: number; checked: number }[];
 }
 
-/** Takeout の zip を画面から入れた結果（POST /api/takeout） */
-export interface TakeoutImportResult {
+/** Takeout・Swarm の zip を画面から入れた結果（POST /api/takeout）。送られなかったほうは null */
+export interface ZipImportResult {
   ok: true;
+  takeout: TakeoutImportStats | null;
+  swarm: { checkins: number; venues: number } | null;
+  addresses: AssignStats;
+}
+
+/** Takeout の zip を入れた結果 */
+export interface TakeoutImportStats {
   saved: number;
   labeled: number;
   listEntries: number;
@@ -45,7 +52,6 @@ export interface TakeoutImportResult {
   mymapPoints: number;
   /** 今回の zip に入っていて置き換えた種類（入っていなかった種類は前のまま） */
   replaced: ('saved' | 'labeled' | 'lists' | 'reviews' | 'mymaps')[];
-  addresses: AssignStats;
 }
 
 export interface LabelSourceStatus {
@@ -162,6 +168,8 @@ export interface SummaryResponse {
     reviewPlaces: number;
     mymapPlaces: number;
   };
+  /** Foursquare Swarm の状態（チェックインの件数・店の数・店の名前が付いた地点の数・入れた日時） */
+  swarm: { checkins: number; venues: number; places: number; loadedAt: string | null };
   /** OpenStreetMap の状態。施設名は手元のデータ（pois 件・loadedAt に入れた）から、住所は Nominatim から少しずつ */
   osm: {
     pois: number;
