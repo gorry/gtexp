@@ -12,6 +12,10 @@ import { rebuildPlaces } from './db';
 //
 // - ラベルから STOP_M（設定 labelStopM、既定 50m）以内の点が来たら立ち寄りを始め、LEAVE_M より遠い点が来るか、
 //   点の間が MAX_GAP_MS あいたら終える。間が MERGE_MS 以内の立ち寄りは 1 つにまとめる。点が 1 つだけでもよい
+//   - 端末は動かないと点を記録しないので、点が GAP_EXTEND_MS 以上途切れたあとに遠い点が来たときは、その遠い点の時刻まで
+//     そこにいたものとする（途切れた間を立ち寄りに含める）
+//   - 移動の始まり・終わりの位置は、前後 ENDPOINT_CHECK_MS の経路の点が LEAVE_M より遠くにあれば使わない（長時間動かない
+//     移動の終わりの位置が、実際にはもう離れた時刻のものになっていることがあるため）
 // - その場所の本当の滞在（STOP_M 以内の滞在先）と、前後 COVERED_MARGIN_MS の範囲で重なる立ち寄りは足さない
 // - 自宅・職場（訪問が HOME_MIN_VISITS 回以上）の近くのラベルは使わない（家の前を通るたびに立ち寄りになるため）
 // - 滞在先：ラベルから takeoutLabelM 以内に本当の滞在先があればその場所、なければラベルごとの場所
@@ -21,6 +25,8 @@ import { rebuildPlaces } from './db';
 
 const LEAVE_M = 200;
 const MAX_GAP_MS = 12 * 3600_000;
+const GAP_EXTEND_MS = 10 * 60_000;
+const ENDPOINT_CHECK_MS = 10 * 60_000;
 const MERGE_MS = 60 * 60_000;
 const COVERED_MARGIN_MS = 15 * 60_000;
 const HOME_MIN_VISITS = 10;
@@ -65,10 +71,28 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
     };
 
     // 経路の点と、移動の始まり・終わりの位置（時刻順）
-    const pts: { t: number; lat: number; lng: number }[] = [];
-    for (const r of db.prepare('SELECT t_ms, lat, lng FROM path_points').iterate() as Iterable<any>) pts.push({ t: r.t_ms, lat: r.lat, lng: r.lng });
+    type Pt = { t: number; lat: number; lng: number };
+    const path: Pt[] = [];
+    for (const r of db.prepare('SELECT t_ms, lat, lng FROM path_points ORDER BY t_ms').iterate() as Iterable<any>) path.push({ t: r.t_ms, lat: r.lat, lng: r.lng });
+    /** 前後 ENDPOINT_CHECK_MS の経路の点と食い違わないか */
+    const agreesWithPath = (e: Pt) => {
+      let lo = 0;
+      let hi = path.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (path[mid].t < e.t - ENDPOINT_CHECK_MS) lo = mid + 1;
+        else hi = mid;
+      }
+      for (let i = lo; i < path.length && path[i].t <= e.t + ENDPOINT_CHECK_MS; i++) {
+        if (distM(e.lat, e.lng, path[i].lat, path[i].lng) > LEAVE_M) return false;
+      }
+      return true;
+    };
+    const pts: Pt[] = [...path];
     for (const r of db.prepare('SELECT start_ms, end_ms, start_lat, start_lng, end_lat, end_lng FROM activities').iterate() as Iterable<any>) {
-      pts.push({ t: r.start_ms, lat: r.start_lat, lng: r.start_lng }, { t: r.end_ms, lat: r.end_lat, lng: r.end_lng });
+      for (const e of [{ t: r.start_ms, lat: r.start_lat, lng: r.start_lng }, { t: r.end_ms, lat: r.end_lat, lng: r.end_lng }]) {
+        if (agreesWithPath(e)) pts.push(e);
+      }
     }
     pts.sort((a, b) => a.t - b.t);
 
@@ -92,6 +116,8 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
       for (const p of pts) {
         const d = p.lat < s1 || p.lat > n1 || p.lng < w1 || p.lng > e1 ? Infinity : distM(l.lat, l.lng, p.lat, p.lng);
         if (cur && (d > LEAVE_M || p.t - last > MAX_GAP_MS)) {
+          // 点が途切れたあとに離れた点が来たら、途切れた間もそこにいたものとする
+          if (d > LEAVE_M && p.t - last >= GAP_EXTEND_MS && p.t - last <= MAX_GAP_MS) cur[1] = p.t;
           stops.push(cur);
           cur = null;
         }
