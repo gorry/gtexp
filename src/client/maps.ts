@@ -5,7 +5,7 @@ let loading: Promise<void> | null = null;
 
 /** 地図の読み込みが Google に断られたとき（API キーのウェブサイトの制限・課金の設定など）に、地図の場所に出す案内 */
 const AUTH_FAILURE_MESSAGE =
-  '地図を表示できません。地図の API キーが使えない状態です（キーのウェブサイトの制限や課金の設定など。ブラウザの JavaScript コンソールに詳しい内容が出ています）。サーバーの管理者に連絡してください。';
+  '地図を表示できません。サーバーの管理者に連絡してください。';
 /** 一度断られたら、ページを読み込み直すまで地図は使えない */
 let authFailed = false;
 const authFailureListeners = new Set<() => void>();
@@ -26,7 +26,7 @@ export function loadMaps(key: string): Promise<void> {
     script.async = true;
     script.onerror = () => {
       loading = null;
-      reject(new Error('Google マップを読み込めませんでした'));
+      reject(new Error('地図を読み込めませんでした。通信の状態を確認して、画面を読み込み直してください。'));
     };
     document.head.appendChild(script);
   });
@@ -177,8 +177,8 @@ export function addLocateControl(map: google.maps.Map): () => void {
     if (!pressed && e.code !== e.PERMISSION_DENIED) return;
     show(
       e.code === e.PERMISSION_DENIED
-        ? '位置情報の利用が許可されていません（ブラウザの設定で、このサイトの位置情報を許可してください）'
-        : '現在地を取得できませんでした',
+        ? '現在地を使えません。ブラウザの設定で、このサイトに位置情報の利用を許可してください。'
+        : '現在地を取得できませんでした。少し待ってから、もう一度押してください。',
     );
     if (e.code === e.PERMISSION_DENIED && watchId != null) {
       navigator.geolocation.clearWatch(watchId);

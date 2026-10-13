@@ -109,7 +109,7 @@ export async function runCheck(config: Config): Promise<boolean> {
     const text = readFileSync(def, 'utf8');
     // FreeBSD の /home は /usr/home へのリンクのことがあるので、実体のパスでも比べる
     const dirOk = def === unit ? [appDir, real(appDir)].some((d) => text.includes(`WorkingDirectory=${d}`)) : real(rcValue('gtexp_dir') || `/home/${rcValue('gtexp_user') || 'gtexp'}/gtexp`) === real(appDir);
-    if (!text.includes('dist/server.mjs')) add('error', `サービスの定義が前の版のまま（dist/server.mjs を動かしていない）：${def}`, install);
+    if (!text.includes('dist/server.mjs')) add('error', `サービスの定義が前のバージョンのまま（dist/server.mjs を動かしていない）：${def}`, install);
     else if (!dirOk) add('warn', `サービスの定義が別のフォルダーを指している：${def}`, install);
     else add('ok', `サービスの定義 ${def}`);
   }
@@ -118,7 +118,7 @@ export async function runCheck(config: Config): Promise<boolean> {
   try {
     const res = await fetch(`http://${config.host === '0.0.0.0' ? '127.0.0.1' : config.host}:${config.port}/api/health`, { signal: AbortSignal.timeout(3000) });
     const h = res.ok ? ((await res.json()) as Health) : null;
-    if (!h?.builtAt) add('error', `動いているサーバーが前の版（${config.host}:${config.port}）`, `${install}（サービスを入れ直して再起動します）`);
+    if (!h?.builtAt) add('error', `動いているサーバーが前のバージョン（${config.host}:${config.port}）`, `${install}（サービスを入れ直して再起動します）`);
     else if (Math.abs(Date.parse(h.builtAt) - statSync(script).mtimeMs) > 1000) {
       add('error', `動いているサーバーが今のビルドと違う（${new Date(h.builtAt).toLocaleString()} のビルドで動いている）`, `サービスを再起動してください（${install} でもよい）`);
     } else add('ok', `サーバーが動いている（${new Date(h.startedAt).toLocaleString()} から、今のビルドで）`);

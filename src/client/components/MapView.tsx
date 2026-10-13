@@ -115,7 +115,7 @@ export function MapView({ apiKey, mapId, visits, activities, path, selectedId, o
   if (!apiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示するには、サーバーの設定ファイルに <code>mapsApiKey</code> を設定してください。</p>
+        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
         <p class="muted">
           {visits.length ? `滞在 ${visits.filter((v) => v.hierarchyLevel === 0).length} 件` : ''}
           {activities.length ? ` / 移動 ${activities.map((a) => activityLabel(a.type)[0]).join('')}` : ''}

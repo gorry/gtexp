@@ -68,7 +68,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   const [takeoutResult, setTakeoutResult] = useState<ZipImportResult | null>(null);
   const [assigning, setAssigning] = useState(false);
   const [assignResult, setAssignResult] = useState('');
-  const [error, setError] = useState(query.get('share') === 'failed' ? '共有されたファイルを受け取れませんでした。下のボタンからファイルを選んでください。' : '');
+  const [error, setError] = useState(query.get('share') === 'failed' ? '共有されたファイルを受信できませんでした。下のボタンからファイルを選んでください。' : '');
 
   const reload = () => {
     api.summary().then(setSummary).catch(() => {});
@@ -217,9 +217,9 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
         <details class="help">
           <summary>タイムラインのエクスポートのしかた（Android）</summary>
           <ol>
-            <li>端末の「設定」→「位置情報」→「位置情報サービス」→「タイムライン」を開く</li>
-            <li>「タイムライン データをエクスポート」でファイルを保存する</li>
-            <li>保存したファイルを「共有」→「G Timeline Explorer」（または gtexp）で送るか、この画面で選ぶ</li>
+            <li>端末の「設定」→「位置情報」→「位置情報サービス」→「タイムライン」を開きます</li>
+            <li>「タイムライン データをエクスポート」でファイルを保存します</li>
+            <li>保存したファイルを「共有」→「G Timeline Explorer」（または gtexp）で送るか、この画面で選びます</li>
           </ol>
           <p class="muted">
             ファイルには毎回、端末にある全期間が入っています。取り込むと、そのファイルの最初の日以降を新しい内容で置き換え、
@@ -231,8 +231,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <p class="muted">Google マップで保存した場所・ラベル・クチコミを書いた店・マイマップの地点の名前を、地点名として使えます。保存リストとマイマップは「保存リスト」のタブでも見られます。</p>
           <ol>
             <li>
-              <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a> で次の4つを選んで書き出し、zip をダウンロードする。
-              「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」だけにする（「写真と動画」は容量のほとんどを占めるが使わない）
+              <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a> で次の4つを選んで書き出し、zip をダウンロードします。
+              「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」だけにします（「写真と動画」は容量のほとんどを占めますが、使いません）
               <ul>
                 <li>マップ（ラベルを付けた場所だけ）</li>
                 <li>マップ（マイプレイス）：保存した場所（スター付きの場所）とクチコミ</li>
@@ -240,10 +240,10 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
                 <li>マイマップ</li>
               </ul>
             </li>
-            <li>この画面の「ファイルを選ぶ」で zip を送る。複数の zip に分かれているときは、全部を一度に選ぶ（別々に送ってもよい）</li>
+            <li>この画面の「ファイルを選ぶ」で zip を送ります。複数の zip に分かれているときは、全部を一度に選びます（別々に送ってもかまいません）</li>
           </ol>
           <p class="muted">
-            zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（既定 2m 以内）か、
+            zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（2m 以内）か、
             同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。
             また、経路がラベルを付けた場所の 50m 以内に来た時間を、短くても「立ち寄り」として滞在に加えます（「推定」の印が付きます。自宅・職場の近くは除きます）。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
           </p>
@@ -253,9 +253,9 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <p class="muted">Swarm でチェックインした店の名前を、地点名として使えます。</p>
           <ol>
             <li>
-              Foursquare のアカウントの設定から、データのエクスポートを頼む。届いた zip をダウンロードする
+              Foursquare のアカウントの設定から、データのエクスポートを申し込みます。届いた zip をダウンロードします
             </li>
-            <li>この画面の「ファイルを選ぶ」で zip を送る（Takeout の zip と一緒に選んでもよい）</li>
+            <li>この画面の「ファイルを選ぶ」で zip を送ります（Takeout の zip と一緒に選んでもかまいません）</li>
           </ol>
           <p class="muted">
             使うのはチェックインだけです（zip そのものはサーバーに残さず、毎回全部を置き換えます）。チェックインした時刻にいた滞在先を探し、
@@ -273,7 +273,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           ) : (
             <ul class="stats">
               <li>{summary.areas.prefectures} 都道府県・代表点 {summary.areas.areas.toLocaleString()} か所</li>
-              <li>大字・町丁目まで分かった場所 {summary.areas.places.toLocaleString()} / {summary.places.toLocaleString()} か所（付いていないのは、データのない都道府県や海外など）</li>
+              <li>大字・町丁目まで分かった場所 {summary.areas.places.toLocaleString()} / {summary.places.toLocaleString()} か所（付いていないのは、データのない都道府県や海外などの場所です）</li>
               <li>街区（〇番）まで分かった場所 {summary.areas.gaikuPlaces.toLocaleString()} か所（街区の代表点が 150m 以内にある場所）</li>
               {summary.areas.pending > 0 && (
                 <li class="note-strong">
@@ -356,8 +356,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
               （タイムラインの取り込みのたびと「今すぐ調べる」で）。
             </p>
             <p class="muted">
-              住所は、サーバーが毎時、まだ調べていない地点をよく行く順に少しずつ OpenStreetMap の Nominatim に問い合わせて貯めます
-              （公開サーバーの利用規約の範囲で、15〜25 秒に1回）。海外の地点にも付きます。
+              住所は、サーバーが毎時、まだ調べていない地点をよく行く順に少しずつ OpenStreetMap の住所検索に問い合わせて貯めます
+              （利用規約の範囲で、15〜25 秒に1回）。海外の地点にも付きます。
             </p>
           </details>
           <AdminNote text="OpenStreetMap の施設のデータを入れることと、住所を毎時取る設定は、サーバーの管理者が行います" />

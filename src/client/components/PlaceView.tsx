@@ -190,7 +190,7 @@ function PlaceMap({ config, lat, lng, semanticType, title }: { config: ClientCon
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示するには、サーバーの設定ファイルに <code>mapsApiKey</code> を設定してください。</p>
+        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
       </div>
     );
   }

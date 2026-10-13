@@ -125,7 +125,7 @@ function BookmarkRow({ b, handle, dragging }: { b: Bookmark; handle: preact.Comp
             <input type="text" value={name} maxLength={200} aria-label="ブックマークの名前" onInput={(e) => setName(e.currentTarget.value)} />
             <div class="note-form-buttons">
               <button type="submit">決定</button>
-              <button type="button" class="text-btn" onClick={() => (setEditing(false), setName(b.title))}>やめる</button>
+              <button type="button" class="text-btn" onClick={() => (setEditing(false), setName(b.title))}>キャンセル</button>
             </div>
           </form>
         ) : (

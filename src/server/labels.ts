@@ -25,13 +25,13 @@ export interface LabelSource {
 export const LABEL_SOURCES: LabelSource[] = [
   {
     id: 'takeout-label', name: 'Google Takeout（ラベルを付けた場所）', kind: 'name', priority: 10,
-    missingNote: '近く（既定 30m 以内）にラベルを付けた場所はありません',
+    missingNote: '近く（30m 以内）にラベルを付けた場所はありません',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
     id: 'takeout-saved', name: 'Google Takeout（保存した場所）', kind: 'name', priority: 20,
-    missingNote: '同じ場所（既定 2m 以内）に保存した場所はありません',
+    missingNote: '同じ場所（2m 以内）に保存した場所はありません',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
@@ -43,19 +43,19 @@ export const LABEL_SOURCES: LabelSource[] = [
   },
   {
     id: 'takeout-review', name: 'Google Takeout（クチコミを書いた場所）', kind: 'name', priority: 25,
-    missingNote: '近く（既定 30m 以内）にクチコミを書いた場所はありません（クチコミの店ごとに、いちばん近い 1 か所だけに付けます）',
+    missingNote: '近く（30m 以内）にクチコミを書いた場所はありません（クチコミの店ごとに、いちばん近い 1 か所だけに付けます）',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
     id: 'takeout-mymap', name: 'Google Takeout（マイマップ）', kind: 'name', priority: 35,
-    missingNote: '近く（既定 30m 以内）にマイマップの地点はありません（マイマップの地点ごとに、いちばん近い 1 か所だけに付けます）',
+    missingNote: '近く（30m 以内）にマイマップの地点はありません（マイマップの地点ごとに、いちばん近い 1 か所だけに付けます）',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
     id: 'takeout-addr', name: 'Google Takeout（保存した場所の住所）', kind: 'address', priority: 30,
-    missingNote: '同じ場所（既定 2m 以内）に保存した場所はありません',
+    missingNote: '同じ場所（2m 以内）に保存した場所はありません',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
@@ -73,13 +73,13 @@ export const LABEL_SOURCES: LabelSource[] = [
   },
   {
     id: 'osm-poi', name: 'OpenStreetMap（施設名）', kind: 'name', priority: 60,
-    missingNote: '60m 以内に名前の付いた施設が見つかりませんでした（OpenStreetMap に登録されていないか、日本の外の地点）',
+    missingNote: '60m 以内に名前の付いた施設が見つかりませんでした（OpenStreetMap に登録されていないか、日本の外の地点です）',
     needsData: true,
     pendingNote: '次の取り込みか、取り込み画面の「今すぐ調べる」で調べます',
   },
   {
     id: 'osm-addr', name: 'OpenStreetMap（住所）', kind: 'address', priority: 60,
-    missingNote: 'OpenStreetMap から住所を取れませんでした',
+    missingNote: 'OpenStreetMap から住所を取得できませんでした',
     needsData: false,
     pendingNote: 'サーバーの定期的な取得（よく行く地点から順）で調べます',
   },

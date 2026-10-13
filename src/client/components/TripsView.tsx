@@ -95,7 +95,7 @@ export function TripsView({ query }: { query: URLSearchParams }) {
             ))}
           </select>
         </div>
-        <p class="muted note">Google のタイムラインが「旅行」としてまとめた記録です。行き先は地域を指す場所で、名前は Google マップで確かめて自分で付けられます。</p>
+        <p class="muted note">Google のタイムラインが「旅行」としてまとめた記録です。行き先は地域を指す場所で、名前は Google マップで確認して自分で付けられます。</p>
       </section>
       {error && <p class="error">{error}</p>}
       {items && (

@@ -63,7 +63,7 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
           <tr>
             <th>画面</th>
             <td>
-              {commitText(BUILD.commit, BUILD.dirty)}（{BUILD.builtAt ? `${dateText(BUILD.builtAt)} にビルド` : '開発用'}）
+              {commitText(BUILD.commit, BUILD.dirty)}（{BUILD.builtAt ? `${dateText(BUILD.builtAt)} 作成` : '開発中のバージョン'}）
             </td>
           </tr>
           <tr>
@@ -72,12 +72,12 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
               {health ? (
                 <>
                   {health.version !== PROFILE.version && `${health.version} `}
-                  {commitText(health.commit, health.dirty)}（{dateText(health.builtAt)} にビルド、{dateText(health.startedAt)} に起動）
+                  {commitText(health.commit, health.dirty)}（{dateText(health.builtAt)} 作成、{dateText(health.startedAt)} 起動）
                 </>
               ) : error ? (
                 <span class="error">{error}</span>
               ) : (
-                '確かめています…'
+                '確認しています…'
               )}
             </td>
           </tr>
@@ -85,7 +85,7 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
       </table>
       {mismatch && (
         <p class="error">
-          画面とサーバーのビルドが違います。画面が古いままのときは、読み込み直してください。{' '}
+          画面とサーバーのバージョンが違います。画面を読み込み直すと、新しいバージョンになります。{' '}
           <button type="button" onClick={() => location.reload()}>
             読み込み直す
           </button>
@@ -104,7 +104,7 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
             ）
           </>
         )}
-        。著作権表示と、使っているソフトウェア・データの表示は次のとおりです（NOTICE）。
+        。著作権表示と、使っているソフトウェア・データの表示は次のとおりです。
       </p>
       <pre class="notice">{notice}</pre>
     </div>

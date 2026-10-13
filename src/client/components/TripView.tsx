@@ -72,7 +72,7 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
         <ExportLinks source="search" params={exportParams('activities')} count={t.activityCount} label="移動" />
 
         <h3 class="section-title">行き先</h3>
-        <p class="muted note">地域を指す場所なので、名前は Google マップで確かめて付けてください。</p>
+        <p class="muted note">地域を指す場所なので、名前は Google マップで確認して付けてください。</p>
         <ul class="destinations">
           {t.destinationPlaces.map((d, i) => (
             <DestinationItem d={d} i={i} onNote={updateDestination} />
@@ -214,7 +214,7 @@ function TripMap({ config, visits, path, selected, onSelect }: {
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示するには、サーバーの設定ファイルに <code>mapsApiKey</code> を設定してください。</p>
+        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
       </div>
     );
   }

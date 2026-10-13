@@ -42,7 +42,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && path !== '/api/login') onUnauthorized();
-    throw new ApiError(res.status, data.error ?? `エラー (${res.status})`);
+    throw new ApiError(res.status, data.error ?? 'エラーが発生しました。時間をおいて、もう一度試してください。');
   }
   return data as T;
 }
@@ -132,10 +132,10 @@ function sendWithProgress<T>(url: string, body: XMLHttpRequestBodyInit, headers:
       if (xhr.status === 200) resolve(data);
       else {
         if (xhr.status === 401) onUnauthorized();
-        reject(new ApiError(xhr.status, data.error ?? `送信に失敗しました (${xhr.status})`));
+        reject(new ApiError(xhr.status, data.error ?? 'ファイルを送信できませんでした。もう一度送信してください。'));
       }
     };
-    xhr.onerror = () => reject(new ApiError(0, '通信に失敗しました'));
+    xhr.onerror = () => reject(new ApiError(0, 'サーバーに接続できませんでした。通信の状態を確認して、もう一度試してください。'));
     xhr.send(body);
   });
 }

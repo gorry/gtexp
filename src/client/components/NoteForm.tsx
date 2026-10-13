@@ -49,7 +49,7 @@ export function NoteForm({ placeId, note, onSaved, onCancel }: Props) {
       <input value={tags} onInput={(e) => setTags(e.currentTarget.value)} placeholder="タグ（例：#ラーメン #出張）" />
       <div class="note-form-buttons">
         <button type="submit" disabled={saving}>保存</button>
-        <button type="button" class="text-btn" onClick={onCancel}>やめる</button>
+        <button type="button" class="text-btn" onClick={onCancel}>キャンセル</button>
         <span class="muted">同じ場所のすべての記録に付きます</span>
       </div>
       {error && <p class="error">{error}</p>}
@@ -73,7 +73,7 @@ export function TagList({ tags }: { tags: string[] }) {
 /** 元データにない、経路から推定した立ち寄り */
 export function EstimatedChip() {
   return (
-    <span class="chip" title="タイムラインには滞在として記録されていないが、経路がラベルを付けた場所の近くを通った（立ち寄りと推定）">
+    <span class="chip" title="タイムラインには滞在として記録されていませんが、ラベルを付けた場所の近くを通ったので、立ち寄ったと推定しました">
       推定
     </span>
   );

@@ -58,7 +58,7 @@ async function readJsonBody(req: IncomingMessage, limit = 1_000_000): Promise<an
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) throw new HttpError(413, 'リクエストが大きすぎます');
+    if (size > limit) throw new HttpError(413, '送られたデータが大きすぎます');
     chunks.push(chunk);
   }
   try {
@@ -74,7 +74,10 @@ function serveStatic(config: Config, req: IncomingMessage, res: ServerResponse, 
   if (!existsSync(file) || statSync(file).isDirectory()) {
     // 画面内のページ（クライアント側のルーティング）は index.html を返す
     file = join(config.publicDir, 'index.html');
-    if (!existsSync(file)) throw new HttpError(404, '画面のファイルがありません（npm run build を実行してください）');
+    if (!existsSync(file)) {
+      console.error(`画面のファイルがありません（${file}。npm run build を実行してください）`);
+      throw new HttpError(404, '画面のファイルが見つかりません。サーバーの管理者に連絡してください。');
+    }
   }
   const immutable = pathname.startsWith('/assets/');
   res.writeHead(200, {
@@ -195,7 +198,7 @@ const importing = new Set<string>();
 
 /** アップロードされたファイル（gzip でも素の JSON でもよい）を、利用者のフォルダーに保存して取り込む */
 async function handleImport(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
-  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理中です');
+  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理しています。終わってから、もう一度送信してください。');
   importing.add(user);
   const dir = join(userDir(config.dataDir, user), 'imports');
   mkdirSync(dir, { recursive: true });
@@ -217,9 +220,9 @@ async function handleImport(config: Config, user: string, db: DatabaseSync, req:
     try {
       data = JSON.parse(text);
     } catch {
-      throw new HttpError(400, 'JSON として読めませんでした');
+      throw new HttpError(400, 'ファイルを読み込めませんでした。タイムラインのエクスポートで保存したファイルを選んでください。');
     }
-    if (!isTimelineExport(data)) throw new HttpError(400, 'タイムラインのエクスポートファイルではありません（semanticSegments がありません）');
+    if (!isTimelineExport(data)) throw new HttpError(400, 'タイムラインのエクスポートのファイルではありません。端末の「タイムライン データをエクスポート」で保存したファイルを選んでください。');
 
     // 元ファイルは gzip で残しておく（後で作り直せるように）
     const stored = join(dir, `${stamp}_${fileName.replace(/\.gz$/, '')}.gz`);
@@ -256,9 +259,9 @@ const TAKEOUT_MAX_BYTES = 200 * 1024 * 1024;
  */
 async function handleTakeout(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
   if (Number(req.headers['content-length'] ?? 0) > TAKEOUT_MAX_BYTES) {
-    throw new HttpError(413, 'ファイルが大きすぎます。Takeout では「マップ」と「保存済み」だけを選び、「マップ」の「写真と動画」を外して書き出してください');
+    throw new HttpError(413, 'ファイルが大きすぎます。Takeout では「マップ」と「保存済み」だけを選び、「マップ」の「写真と動画」を外して書き出してください。');
   }
-  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理中です');
+  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理しています。終わってから、もう一度送信してください。');
   importing.add(user);
   // 受け取った zip を一時的に置く場所（取り出したら消す）
   const tmp = join(userDir(config.dataDir, user), 'takeout-upload');
@@ -272,21 +275,21 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
         duplex: 'half',
       } as RequestInit).formData();
     } catch {
-      throw new HttpError(400, 'ファイルを受け取れませんでした');
+      throw new HttpError(400, 'ファイルを受信できませんでした。もう一度送信してください。');
     }
     const files = form.getAll('file').filter((v): v is File => typeof v !== 'string');
-    if (!files.length) throw new HttpError(400, 'ファイルがありません');
+    if (!files.length) throw new HttpError(400, 'ファイルが選ばれていません。');
     rmSync(tmp, { recursive: true, force: true });
     mkdirSync(tmp, { recursive: true });
     for (const [i, file] of files.entries()) {
       const buf = Buffer.from(await file.arrayBuffer());
-      if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません`);
+      if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません。Takeout や Swarm の書き出しの zip を選んでください。`);
       writeFileSync(join(tmp, `${String(i + 1).padStart(2, '0')}_${file.name.replace(/[^\w.\-]/g, '_').slice(0, 100)}`), buf);
     }
     let result: Omit<ZipImportResult, 'ok' | 'addresses'>;
     try {
       const { swarm, others } = splitSwarmZips([tmp]);
-      if (swarm.length > 1) throw new Error('Swarm の zip は 1 つだけ送ってください（毎回、全期間のチェックインが入っています）');
+      if (swarm.length > 1) throw new Error('Swarm の zip は 1 つだけ送信してください（毎回、全期間のチェックインが入っています）');
       result = {
         takeout: others.length ? importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), others) : null,
         swarm: swarm.length ? importSwarmZip(db, join(userDir(config.dataDir, user), 'swarm'), swarm[0]) : null,
@@ -327,15 +330,18 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
 
   if (path === '/api/login' && method === 'POST') {
-    if (tooManyFailures()) throw new HttpError(429, 'しばらく時間をおいてから試してください');
+    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度ログインしてください。');
     const { user: rawUser, password } = await readJsonBody(req);
     const name = String(rawUser ?? '').trim().toLowerCase();
     const user = name ? getUser(shared, name) : null;
-    if (!listUsers(shared).length) throw new HttpError(500, '利用者がいません（サーバーで node dist/server.mjs user-add を実行してください）');
+    if (!listUsers(shared).length) {
+      console.error('利用者がいません（node dist/server.mjs user-add で登録してください）');
+      throw new HttpError(500, '利用者が登録されていません。サーバーの管理者に連絡してください。');
+    }
     if (!user || typeof password !== 'string' || !verifyPassword(password, user.passwordHash)) {
       loginFailures.push(Date.now());
       await new Promise((r) => setTimeout(r, 1000));
-      throw new HttpError(401, '利用者名かパスワードが違います');
+      throw new HttpError(401, '利用者名かパスワードが違います。確認して、もう一度入力してください。');
     }
     sendJson(res, 200, { loggedIn: true, user: user.name }, {
       'Set-Cookie': issueSessionCookie(config.sessionSecret, user.name, user.sessionKey, config.sessionDays, isHttps(req)),
@@ -357,7 +363,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     sendJson(res, 200, user ? { loggedIn: true, user } : { loggedIn: false });
     return;
   }
-  if (!user) throw new HttpError(401, 'ログインしてください');
+  if (!user) throw new HttpError(401, 'ログインしていません。ログインし直してください。');
   // ここから先は、ログインしている利用者の記録だけを扱う
   const db = userDb(config, user);
 
@@ -376,7 +382,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/areas/assign' && method === 'POST') {
     // 取り込みのときと同じ割り当てを、取り込み直さずに行う（位置参照情報を入れた直後など）
-    if (importing.has(user)) throw new HttpError(409, '取り込みか住所の割り当てを処理中です');
+    if (importing.has(user)) throw new HttpError(409, '取り込みか住所の割り当てを処理しています。終わってから、もう一度試してください。');
     importing.add(user);
     try {
       sendJson(res, 200, assignForImport(db, assignOptions(config)));
@@ -519,7 +525,7 @@ function serve(): void {
     route(config, shared, req, res).catch((e) => {
       const status = e instanceof HttpError ? e.status : 500;
       if (status === 500) console.error(e);
-      if (!res.headersSent) sendJson(res, status, { error: e instanceof HttpError ? e.message : 'サーバーでエラーが起きました' });
+      if (!res.headersSent) sendJson(res, status, { error: e instanceof HttpError ? e.message : 'サーバーでエラーが発生しました。時間をおいて、もう一度試してください。' });
       else res.end();
     });
   });
@@ -728,7 +734,7 @@ ${PROFILE.copyright}
 
 使い方（[--user 名前] は、利用者が 1 人だけなら省ける）:
   serve                  サーバーを起動する
-  check                  設置を確かめる（サービスの定義・ビルド・画面のファイル・設定・持ち主・動いているサーバーの版など）
+  check                  設置を確かめる（サービスの定義・ビルド・画面のファイル・設定・持ち主・動いているサーバーのバージョンなど）
   user-add <名前>        利用者を足す（パスワードを聞く）。名前は英小文字・数字・_・- で 32 文字まで
   user-passwd <名前>     パスワードを変える（その利用者のログイン中の端末はすべてログアウトされる）
   user-del <名前>        利用者を消す（ログインできなくするだけ。記録のフォルダー data/users/<名前> は残す）

@@ -22,8 +22,8 @@ function placeUrl(placeId: string): string {
 function geoLabel(e: ListEntry): string {
   if (e.geo === 'takeout' || e.geo === 'mymap') return '';
   if (e.geo === 'pin') return '地図のピン';
-  if (e.geo === 'osm') return `位置は OSM「${e.osmName}」から`;
-  return e.candidates ? `位置不明（OSM に同じ名前が ${e.candidates} か所）` : '位置不明';
+  if (e.geo === 'osm') return `位置は OpenStreetMap の「${e.osmName}」から`;
+  return e.candidates ? `位置不明（OpenStreetMap に同じ名前が ${e.candidates} か所）` : '位置不明';
 }
 
 /**
@@ -136,21 +136,19 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
           </p>
         )}
         {!lists && !listsError && <p class="muted result-count">読み込んでいます…</p>}
-        {lists && !lists.length && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送ってください）。</p>}
+        {lists && !lists.length && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送信してください）。</p>}
         {loading && <p class="muted result-count">読み込んでいます…</p>}
         {data && (
           <p class="muted result-count">
             {shown.length.toLocaleString()} か所
             {counts.noGeo > 0 && `・位置不明 ${counts.noGeo.toLocaleString()}`}
-            {counts.osm > 0 && `・OSM から推定 ${counts.osm.toLocaleString()}`}
+            {counts.osm > 0 && `・OpenStreetMap から推定 ${counts.osm.toLocaleString()}`}
             {shown.filter((e) => e.lat != null).length > MAX_PINS && `（地図には ${MAX_PINS.toLocaleString()} か所まで）`}
           </p>
         )}
         {data && !data.osm.keys && (
           <p class="muted note">
-            {data.osm.pois
-              ? 'OSM の施設を名前で探す索引がまだないので、Takeout に位置のない店は位置不明になります（サーバーの管理者が作ります）。'
-              : 'OSM の施設のデータがサーバーにないので、Takeout に位置のない店は位置不明になります（サーバーの管理者が入れます）。'}
+            位置が書かれていない店は「位置不明」になります。サーバーの管理者が OpenStreetMap のデータを用意すると、店の名前から位置を探せるようになります。
           </p>
         )}
         <ol class="place-list">
@@ -272,7 +270,7 @@ function ListMap({ config, list, entries, focus, onView }: {
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示するには、サーバーの設定ファイルに <code>mapsApiKey</code> を設定してください。</p>
+        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
       </div>
     );
   }
