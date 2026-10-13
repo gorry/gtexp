@@ -10,7 +10,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { loadConfig, describeConfig, type Config } from './config';
 import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
 import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } from './users';
-import { bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
+import { addBookmark, deleteBookmark, listBookmarks, renameBookmark, reorderBookmarks, bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
 import { importTakeoutZips } from './takeout';
@@ -302,6 +302,13 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
   }
 }
 
+/** ブックマークの名前（空なら fallback、200 文字まで） */
+function bookmarkTitle(v: unknown, fallback: string): string {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  if (!t && !fallback) throw new HttpError(400, '名前を指定してください');
+  return t || fallback;
+}
+
 async function route(config: Config, shared: DatabaseSync, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
@@ -454,6 +461,40 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     const remove = tags(body.remove);
     if (!add.length && !remove.length) throw new HttpError(400, '付けるか外すタグを指定してください');
     sendJson(res, 200, { changed: bulkTags(db, ids, add, remove) });
+    return;
+  }
+  if (path === '/api/bookmarks' && method === 'GET') {
+    sendJson(res, 200, listBookmarks(db));
+    return;
+  }
+  if (path === '/api/bookmarks' && method === 'POST') {
+    // { hash, title }。同じ画面がもうあれば、名前だけ変える
+    const body = await readJsonBody(req);
+    const hash = String(body.hash ?? '');
+    if (!/^#\/[^\s]*$/.test(hash) || hash.length > 2000) throw new HttpError(400, 'hash は #/ で始まる画面の URL で指定してください');
+    sendJson(res, 200, addBookmark(db, hash, bookmarkTitle(body.title, hash)));
+    return;
+  }
+  if (path === '/api/bookmarks/order' && method === 'PUT') {
+    // { ids }：並べたい順の id
+    const body = await readJsonBody(req);
+    const ids: number[] = Array.isArray(body.ids) ? [...new Set(body.ids.map(Number).filter(Number.isInteger))] as number[] : [];
+    if (!ids.length || ids.length > 10_000) throw new HttpError(400, 'ids を並べたい順に指定してください');
+    reorderBookmarks(db, ids);
+    sendJson(res, 200, listBookmarks(db));
+    return;
+  }
+  const bookmarkMatch = path.match(/^\/api\/bookmarks\/(\d+)$/);
+  if (bookmarkMatch && method === 'PUT') {
+    const body = await readJsonBody(req);
+    const b = renameBookmark(db, Number(bookmarkMatch[1]), bookmarkTitle(body.title, ''));
+    if (!b) throw new HttpError(404, 'そのブックマークはありません');
+    sendJson(res, 200, b);
+    return;
+  }
+  if (bookmarkMatch && method === 'DELETE') {
+    deleteBookmark(db, Number(bookmarkMatch[1]));
+    sendJson(res, 200, { ok: true });
     return;
   }
   const noteMatch = path.match(/^\/api\/places\/([^/]+)\/note$/);

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { Activity, ClientConfig, DayResponse, Visit } from '../../shared/types';
 import { api } from '../api';
+import { usePageTitle } from '../bookmarks';
 import { activityLabel, addDays, visitNumbers, dateLabel, duration, googleEarthUrl, googleMapsUrl, km, semanticLabel, timeOnDay, todayIn } from '../format';
 import { Calendar } from './Calendar';
 import { MapView, areaHint, visitName } from './MapView';
@@ -15,6 +16,7 @@ interface Props {
 type Item = { kind: 'visit'; v: Visit; no: number } | { kind: 'activity'; a: Activity };
 
 export function DayView({ date, config, onDate }: Props) {
+  usePageTitle(dateLabel(date));
   const [day, setDay] = useState<DayResponse | null>(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<number | null>(null);

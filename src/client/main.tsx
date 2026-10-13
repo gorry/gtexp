@@ -5,6 +5,8 @@ import type { ClientConfig } from '../shared/types';
 import { api, setUnauthorizedHandler } from './api';
 import { todayIn } from './format';
 import { About } from './components/About';
+import { BookmarkButton } from './components/BookmarkButton';
+import { BookmarksView } from './components/BookmarksView';
 import { DayView } from './components/DayView';
 import { HeaderMenu } from './components/HeaderMenu';
 import { ImportView } from './components/ImportView';
@@ -17,7 +19,7 @@ import { TripView } from './components/TripView';
 import { TripsView } from './components/TripsView';
 import './styles.css';
 
-// 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import, #/about）
+// 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import, #/bookmarks, #/about）
 function parseHash(): { page: string; arg: string; query: URLSearchParams } {
   const [path, qs] = location.hash.replace(/^#/, '').split('?');
   const [, page = '', arg = ''] = path.split('/');
@@ -61,7 +63,7 @@ function App() {
   if (!config) return null;
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(arg) ? arg : defaultDate || todayIn(config.tzOffsetMinutes);
-  const current = ['import', 'places', 'place', 'search', 'trips', 'trip', 'lists'].includes(page) ? page : 'day';
+  const current = ['import', 'places', 'place', 'search', 'trips', 'trip', 'lists', 'bookmarks'].includes(page) ? page : 'day';
 
   return (
     <div class="app">
@@ -81,6 +83,7 @@ function App() {
           </a>
           <a href="#/import" class={current === 'import' ? 'active' : ''}>取り込み</a>
         </nav>
+        <BookmarkButton />
         <HeaderMenu user={user ?? ''} />
       </header>
       <main class="content">
@@ -89,6 +92,8 @@ function App() {
         ) : current === 'places' ? (
           // タグのリンクなどで条件付きの URL に来たら、条件を読み直す
           <PlacesView key={query.toString()} config={config} query={query} />
+        ) : current === 'bookmarks' ? (
+          <BookmarksView />
         ) : current === 'lists' ? (
           <ListsView key={query.get('list') ?? ''} config={config} query={query} />
         ) : current === 'trips' ? (

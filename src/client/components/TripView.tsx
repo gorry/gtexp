@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, PathPoint, TripDestination, TripDetailResponse, Visit } from '../../shared/types';
 import { api } from '../api';
+import { usePageTitle } from '../bookmarks';
 import { duration, googleEarthUrl, googleMapsPlaceUrl, googleMapsUrl, hhmm, km, shortDate } from '../format';
 import { PIN_COLORS, PIN_DEFAULT, fitTo, infoContent, useGoogleMap } from '../maps';
 import { ExportLinks } from './ExportLinks';
@@ -12,6 +13,7 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
   const [data, setData] = useState<TripDetailResponse | null>(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<number | null>(null);
+  usePageTitle(data ? `旅行 ${tripPeriod(data.trip)}` : '旅行');
 
   useEffect(() => {
     let alive = true;

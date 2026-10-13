@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, ListEntriesResponse, ListEntry, ListSummary } from '../../shared/types';
 import { api } from '../api';
+import { usePageTitle } from '../bookmarks';
 import { fitTo, infoContent, useGoogleMap } from '../maps';
 
 /** 地図に出すピンの上限（多すぎると重くなる） */
@@ -40,6 +41,8 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
   const [error, setError] = useState('');
   const [focus, setFocus] = useState<{ index: number; seq: number } | null>(null);
   const sideRef = useRef<HTMLElement>(null);
+  const listName = lists?.find((l) => l.key === list)?.list;
+  usePageTitle(listName ? `保存リスト「${listName}」` : '保存リスト');
 
   const loadLists = () => {
     setListsError('');

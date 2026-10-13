@@ -1,5 +1,6 @@
 import type {
   AssignStats,
+  Bookmark,
   CalendarResponse,
   ClientConfig,
   DayResponse,
@@ -71,6 +72,13 @@ export const api = {
   /** Takeout の保存リスト */
   lists: () => request<ListSummary[]>('GET', '/api/lists'),
   listEntries: (list: string) => request<ListEntriesResponse>('GET', `/api/lists/entries?list=${encodeURIComponent(list)}`),
+  bookmarks: () => request<Bookmark[]>('GET', '/api/bookmarks'),
+  /** 同じ画面がもうあれば、名前だけ変わる */
+  addBookmark: (hash: string, title: string) => request<Bookmark>('POST', '/api/bookmarks', { hash, title }),
+  renameBookmark: (id: number, title: string) => request<Bookmark>('PUT', `/api/bookmarks/${id}`, { title }),
+  /** 並べたい順の id を渡すと、並べ替えたあとの一覧が返る */
+  reorderBookmarks: (ids: number[]) => request<Bookmark[]>('PUT', '/api/bookmarks/order', { ids }),
+  deleteBookmark: (id: number) => request<{ ok: true }>('DELETE', `/api/bookmarks/${id}`),
   saveNote: (placeId: string, note: PlaceNote) =>
     request<PlaceNote>('PUT', `/api/places/${encodeURIComponent(placeId)}/note`, note),
 };

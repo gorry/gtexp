@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Activity, PlaceKind, SearchGroup, SearchGroupRow, SearchResponse, SearchTarget, Visit } from '../../shared/types';
 import { api } from '../api';
+import { filteredTitle, usePageTitle } from '../bookmarks';
 import { ACTIVITY_TYPES, WEEKDAYS, activityLabel, duration, hhmm, km, semanticLabel, shortDate, totalDuration } from '../format';
 import { BarChart, BarList, type Bar } from './BarChart';
 import { ExportLinks } from './ExportLinks';
@@ -140,6 +141,7 @@ function tickFor(group: SearchGroup, key: string, i: number, n: number): string 
 export function SearchView({ query }: { query: URLSearchParams }) {
   const [filters, setFilters] = useState<Filters>(() => filtersFrom(query));
   const [qInput, setQInput] = useState(filters.q);
+  usePageTitle(filteredTitle('集計', filters.q, filters.from, filters.to));
   // 結果は、取得したときのまとめ方と組で持つ（まとめ方を変えた直後に、古い結果を新しいまとめ方で読まないため）
   const [data, setData] = useState<(SearchResponse & { group: SearchGroup }) | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);

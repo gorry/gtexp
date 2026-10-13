@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
 import type { TripDestination, TripSummary } from '../../shared/types';
 import { api } from '../api';
+import { filteredTitle, usePageTitle } from '../bookmarks';
 import { km, shortDate } from '../format';
 import { BarChart } from './BarChart';
 import { PeriodPicker } from './PeriodPicker';
@@ -30,6 +31,7 @@ export function tripPeriod(t: TripSummary): string {
 export function TripsView({ query }: { query: URLSearchParams }) {
   const [from, setFrom] = useState(query.get('from') ?? '');
   const [to, setTo] = useState(query.get('to') ?? '');
+  usePageTitle(filteredTitle('旅行', '', from, to));
   const [sort, setSort] = useState<TripSort>((query.get('sort') as TripSort) || 'new');
   const [items, setItems] = useState<TripSummary[] | null>(null);
   const [error, setError] = useState('');

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { PROFILE } from '../../shared/profile.gen';
 import type { ImportRecord, SummaryResponse, TakeoutImportStats, ZipImportResult } from '../../shared/types';
 import { api, uploadExport, uploadTakeout, type ImportResult, type UploadStage } from '../api';
+import { usePageTitle } from '../bookmarks';
 import { assignSummary } from '../format';
 import { clearCalendarCache } from './Calendar';
 import { clearYearsCache } from './PeriodPicker';
@@ -59,6 +60,7 @@ const STAGE_LABELS: Record<UploadStage, string> = {
 };
 
 export function ImportView({ query, onImported }: { query: URLSearchParams; onImported: () => void }) {
+  usePageTitle('取り込み');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [history, setHistory] = useState<ImportRecord[]>([]);
   const [progress, setProgress] = useState<{ stage: UploadStage; ratio: number } | null>(null);

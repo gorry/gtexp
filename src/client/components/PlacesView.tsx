@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, PlaceKind, PlaceSort, PlaceSummary } from '../../shared/types';
 import { api } from '../api';
+import { filteredTitle, usePageTitle } from '../bookmarks';
 import { googleEarthUrl, googleMapsUrl, semanticLabel, totalDuration } from '../format';
 import { PIN_COLORS, PIN_DEFAULT, fitTo, infoContent, useGoogleMap } from '../maps';
 import { areaHint, visitName } from './MapView';
@@ -76,6 +77,7 @@ function placeUrl(placeId: string): string {
 export function PlacesView({ config, query }: { config: ClientConfig; query: URLSearchParams }) {
   const [filters, setFilters] = useState<Filters>(() => filtersFrom(query));
   const [qInput, setQInput] = useState(filters.q);
+  usePageTitle(filteredTitle('場所', filters.q, filters.from, filters.to));
   const [bbox, setBbox] = useState('');
   const [items, setItems] = useState<PlaceSummary[]>([]);
   const [total, setTotal] = useState(0);

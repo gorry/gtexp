@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, PlaceDetailResponse, PlaceVisit } from '../../shared/types';
 import { api } from '../api';
+import { usePageTitle } from '../bookmarks';
 import { areaFull, duration, googleEarthUrl, googleMapsUrl, hhmm, semanticLabel, shortDate, totalDuration } from '../format';
 import { PIN_COLORS, PIN_DEFAULT, useGoogleMap } from '../maps';
 import { visitName } from './MapView';
@@ -10,6 +11,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
   const [data, setData] = useState<PlaceDetailResponse | null>(null);
   const [error, setError] = useState('');
   const [editing, setEditing] = useState(false);
+  usePageTitle(data ? visitName(data.place) : '場所');
 
   useEffect(() => {
     let alive = true;

@@ -3,6 +3,7 @@ import type { HealthResponse } from '../../shared/types';
 import { PROFILE } from '../../shared/profile.gen';
 import { BUILD } from '../../shared/build.gen';
 import { api } from '../api';
+import { usePageTitle } from '../bookmarks';
 // 著作権表示と第三者のソフトウェア・データの表示（リポジトリの NOTICE をビルドのときに埋め込む）
 import notice from '../../../NOTICE?raw';
 
@@ -20,6 +21,7 @@ function dateText(iso: string): string {
  * ログインしていなくても見られる（ログインの画面から開く）
  */
 export function About({ loggedIn }: { loggedIn: boolean }) {
+  usePageTitle('このアプリについて');
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState('');
 

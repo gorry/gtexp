@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api';
 
-/** 見出しの右端のメニュー：ログインしている利用者の名前、このアプリについて、ログアウト */
+/** 見出しの右端のメニュー：ログインしている利用者の名前、ブックマーク、このアプリについて、ログアウト */
 export function HeaderMenu({ user }: { user: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -36,6 +36,9 @@ export function HeaderMenu({ user }: { user: string }) {
           <div class="header-menu-user muted" title="ログインしている利用者">
             {user}
           </div>
+          <a role="menuitem" href="#/bookmarks">
+            ブックマーク
+          </a>
           <a role="menuitem" href="#/about">
             このアプリについて
           </a>

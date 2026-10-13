@@ -6,6 +6,15 @@ export interface PlaceNote {
   tags: string[];
 }
 
+/** ブックマーク：画面の URL（# 以降）と名前 */
+export interface Bookmark {
+  id: number;
+  /** 画面の URL の # 以降（#/day/2024-05-25 など） */
+  hash: string;
+  title: string;
+  createdAt: string;
+}
+
 /**
  * 場所の住所・地点名。取得方法（source）ごとに1件ずつある。
  * 一覧などでは、取得方法の優先順位でいちばん良い住所を1つ（address）だけ返す

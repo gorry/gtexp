@@ -9,6 +9,7 @@ import { swarmStatus } from './swarm';
 import { ADDRESS_COLUMNS, NAME_COLUMNS, bestAddressJoin, bestNameJoin, labelLikeSql, labelOrderSql, sourceName } from './labels';
 import type {
   Activity,
+  Bookmark,
   CalendarResponse,
   DayResponse,
   ImportRecord,
@@ -123,6 +124,15 @@ CREATE TABLE IF NOT EXISTS place_notes (
   memo TEXT NOT NULL DEFAULT '',
   tags TEXT NOT NULL DEFAULT '[]',
   updated_at TEXT NOT NULL
+);
+
+-- ブックマーク：画面の URL（# 以降）と名前。一覧は position の小さい順
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id INTEGER PRIMARY KEY,
+  hash TEXT NOT NULL UNIQUE,
+  title TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS imports (
@@ -300,6 +310,11 @@ export function openUserDb(dataDir: string, user: string): DatabaseSync {
   // 前の版で作った DB には、あとから足した列がない
   const visitCols = (db.prepare('PRAGMA table_info(visits)').all() as any[]).map((r) => r.name as string);
   if (visitCols.length && !visitCols.includes('estimated')) db.exec('ALTER TABLE visits ADD COLUMN estimated INTEGER NOT NULL DEFAULT 0');
+  const bookmarkCols = (db.prepare('PRAGMA table_info(bookmarks)').all() as any[]).map((r) => r.name as string);
+  if (bookmarkCols.length && !bookmarkCols.includes('position')) {
+    // 並べ替えを足す前は新しい順だった
+    db.exec('ALTER TABLE bookmarks ADD COLUMN position INTEGER NOT NULL DEFAULT 0; UPDATE bookmarks SET position = -id;');
+  }
   db.exec(SCHEMA);
   db.prepare('ATTACH DATABASE ? AS shared').run(sharedDbPath(dataDir));
   db.exec('PRAGMA shared.journal_mode = WAL;');
@@ -997,4 +1012,41 @@ export function savePlaceNote(db: DatabaseSync, placeId: string, note: PlaceNote
      ON CONFLICT(place_id) DO UPDATE SET name = excluded.name, memo = excluded.memo,
        tags = excluded.tags, updated_at = excluded.updated_at`,
   ).run(placeId, note.name, note.memo, JSON.stringify(note.tags), new Date().toISOString());
+}
+
+function toBookmark(r: Row): Bookmark {
+  return { id: r.id, hash: r.hash, title: r.title, createdAt: r.created_at };
+}
+
+/** ブックマークの一覧（並べた順） */
+export function listBookmarks(db: DatabaseSync): Bookmark[] {
+  return (db.prepare('SELECT * FROM bookmarks ORDER BY position, id DESC').all() as Row[]).map(toBookmark);
+}
+
+/** ブックマークを足す（いちばん上に）。同じ画面がもうあれば、名前だけ変える */
+export function addBookmark(db: DatabaseSync, hash: string, title: string): Bookmark {
+  db.prepare(
+    `INSERT INTO bookmarks (hash, title, created_at, position)
+     VALUES (?, ?, ?, (SELECT COALESCE(MIN(position), 0) - 1 FROM bookmarks))
+     ON CONFLICT(hash) DO UPDATE SET title = excluded.title`,
+  ).run(hash, title, new Date().toISOString());
+  return toBookmark(db.prepare('SELECT * FROM bookmarks WHERE hash = ?').get(hash) as Row);
+}
+
+/** ブックマークの名前を変える。なければ null */
+export function renameBookmark(db: DatabaseSync, id: number, title: string): Bookmark | null {
+  db.prepare('UPDATE bookmarks SET title = ? WHERE id = ?').run(title, id);
+  const r = db.prepare('SELECT * FROM bookmarks WHERE id = ?').get(id) as Row | undefined;
+  return r ? toBookmark(r) : null;
+}
+
+/** ブックマークを並べ替える（ids の順に。ids にないものは後ろに、今の順のまま） */
+export function reorderBookmarks(db: DatabaseSync, ids: number[]): void {
+  const rest = listBookmarks(db).map((b) => b.id).filter((id) => !ids.includes(id));
+  const set = db.prepare('UPDATE bookmarks SET position = ? WHERE id = ?');
+  transaction(db, () => [...ids, ...rest].forEach((id, i) => set.run(i, id)));
+}
+
+export function deleteBookmark(db: DatabaseSync, id: number): void {
+  db.prepare('DELETE FROM bookmarks WHERE id = ?').run(id);
 }

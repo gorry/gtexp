@@ -184,6 +184,102 @@ textarea {
   font-weight: 600;
 }
 
+/* 見出しの ☆（ブックマーク）。右端のメニューの左に並べる */
+.bookmark-menu {
+  position: relative;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.bookmark-menu + .header-menu {
+  margin-left: -12px;
+}
+
+.bookmark-btn.on {
+  color: #f5a623;
+}
+
+.bookmark-pop {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: -40px;
+  z-index: 1000;
+  width: min(320px, calc(100vw - 32px));
+  padding: 4px 12px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.bookmark-pop-head {
+  margin: 4px 0 0;
+  font-weight: 600;
+}
+
+.bookmark-pop-name {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bookmark-pop-list {
+  margin-left: auto;
+}
+
+/* ブックマークの一覧 */
+.bookmark-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bookmark-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.bookmark-list li.dragging {
+  background: var(--bg-soft);
+}
+
+/* 並べ替えのつまみ。指で動かしても画面が送られないように */
+.bookmark-handle {
+  flex-shrink: 0;
+  padding: 8px 4px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  display: flex;
+}
+
+.bookmark-handle:hover {
+  background: var(--bg-soft);
+  color: var(--fg);
+}
+
+.bookmark-list li.dragging .bookmark-handle {
+  cursor: grabbing;
+}
+
+.bookmark-list .bookmark-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.bookmark-list .bookmark-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bookmark-list .bookmark-sub {
+  font-size: 12px;
+}
+
 /* 見出しの右端のメニュー（利用者の名前・このアプリについて・ログアウト） */
 .header-menu {
   position: relative;
