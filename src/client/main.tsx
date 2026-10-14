@@ -16,6 +16,7 @@ import { SearchView } from './components/SearchView';
 import { TripView } from './components/TripView';
 import { TripsView } from './components/TripsView';
 import { UserView } from './components/UserView';
+import { ImportView } from './components/ImportView';
 import { openTab, tabHash } from './tabs';
 import { setIconVersion } from './userIcon';
 import './styles.css';
@@ -56,7 +57,15 @@ function App() {
     // アイコンの版（ログインした直後は分からないので、ここで確かめる）
     api.me().then((r) => setIconVersion(r.icon ?? null)).catch(() => {});
     // 最初に開く日は、データがある最後の日
-    api.summary().then((s) => setDefaultDate(s.lastDate ?? '')).catch(() => {});
+    api
+      .summary()
+      .then((s) => {
+        setDefaultDate(s.lastDate ?? '');
+        // タイムラインのデータがまだなければ、最初の画面（日付）ではなく、データの取り込みを開く
+        // （ほかの画面を指定して開いたとき・共有から送られてきたときはそのまま）
+        if (!s.lastDate && ['', 'day'].includes(parseHash().page)) location.replace('#/import');
+      })
+      .catch(() => {});
   }, [loggedIn]);
 
   if (loggedIn === null) return null;
@@ -66,8 +75,7 @@ function App() {
   if (!config) return null;
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(arg) ? arg : defaultDate || todayIn(config.tzOffsetMinutes);
-  // 前の取り込みの画面（#/import）は、ユーザー情報の画面に入れた
-  const current = page === 'import' ? 'user' : ['user', 'places', 'place', 'search', 'trips', 'trip', 'lists', 'bookmarks'].includes(page) ? page : 'day';
+  const current = ['user', 'import', 'places', 'place', 'search', 'trips', 'trip', 'lists', 'bookmarks'].includes(page) ? page : 'day';
 
   return (
     <div class="app">
@@ -88,7 +96,9 @@ function App() {
       </header>
       <main class="content">
         {current === 'user' ? (
-          <UserView user={user ?? ''} query={query} onImported={() => api.summary().then((s) => setDefaultDate(s.lastDate ?? ''))} />
+          <UserView user={user ?? ''} />
+        ) : current === 'import' ? (
+          <ImportView query={query} onImported={() => api.summary().then((s) => setDefaultDate(s.lastDate ?? ''))} />
         ) : current === 'places' ? (
           // タグのリンクなどで条件付きの URL に来たら、条件を読み直す
           <PlacesView key={query.toString()} config={config} query={query} />

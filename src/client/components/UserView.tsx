@@ -2,19 +2,24 @@ import { useRef, useState } from 'preact/hooks';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
 import { UserIcon, makeIcon, setIconVersion } from '../userIcon';
-import { ImportView } from './ImportView';
 
 /**
- * ユーザー情報：アイコンの設定、データの取り込み、パスワードの変更、ログアウト。
- * 見出しのメニューの利用者名から開く（#/user。前の #/import と、共有から送られてきたときもここ）
+ * ユーザー情報：アイコンの設定、データの取り込み（別の画面へのリンク）、パスワードの変更、ログアウト。
+ * 見出しのメニューの利用者名から開く（#/user）
  */
-export function UserView({ user, query, onImported }: { user: string; query: URLSearchParams; onImported: () => void }) {
+export function UserView({ user }: { user: string }) {
   usePageTitle('ユーザー情報');
   return (
     <div class="page">
       <h2>ユーザー情報</h2>
       <IconCard user={user} />
-      <ImportView query={query} onImported={onImported} />
+      <section class="card">
+        <h3>データの取り込み</h3>
+        <p class="muted">タイムラインのエクスポートや、Google Takeout・Foursquare Swarm の書き出しを取り込みます。</p>
+        <a class="file-button" href="#/import">
+          データの取り込みを開く
+        </a>
+      </section>
       <PasswordCard />
       <section class="card">
         <h3>ログアウト</h3>

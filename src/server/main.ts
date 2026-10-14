@@ -337,7 +337,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (!path.startsWith('/api/')) {
     if (method === 'POST' && path === '/share-target') {
       // 通常は Service Worker が受け取る。届いてしまったら取り込み画面へ案内する
-      res.writeHead(303, { Location: '/#/user?share=failed' });
+      res.writeHead(303, { Location: '/#/import?share=failed' });
       res.end();
       return;
     }
