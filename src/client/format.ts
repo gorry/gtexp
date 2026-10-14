@@ -63,7 +63,8 @@ export function duration(startMs: number, endMs: number): string {
   if (min < 60) return `${min}分`;
   const h = Math.floor(min / 60);
   if (h < 24) return `${h}時間${min % 60 ? `${min % 60}分` : ''}`;
-  return `${Math.floor(h / 24)}日${h % 24 ? `${h % 24}時間` : ''}`;
+  // 日の単位になったら、時間が 0 でも「5日 0時間」のように出す
+  return `${Math.floor(h / 24)}日 ${h % 24}時間`;
 }
 
 export function km(meters: number): string {
@@ -116,12 +117,13 @@ export function visitNumbers(visits: Visit[]): Map<number, number> {
   return map;
 }
 
-/** 滞在時間の合計。長いものは日数で出す */
+/** 滞在時間の合計。長いものは日と時間で出す（時間が 0 でも「5日 0時間」のように出す） */
 export function totalDuration(ms: number): string {
   const h = ms / 3_600_000;
   if (h < 1) return `${Math.round(ms / 60_000)}分`;
   if (h < 48) return `${Math.round(h)}時間`;
-  return `${Math.round(h / 24).toLocaleString()}日`;
+  const hours = Math.round(h);
+  return `${Math.floor(hours / 24).toLocaleString()}日 ${hours % 24}時間`;
 }
 
 /** YYYY-MM-DD → 2024/5/25（土） */
