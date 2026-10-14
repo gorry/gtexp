@@ -223,7 +223,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
       <h2>集計</h2>
       <section class="card filters-card">
         <div class="segmented" role="radiogroup" aria-label="対象">
-          {(['visits', 'activities', 'gaps', 'departures', 'arrivals'] as SearchTarget[]).map((t) => (
+          {(['visits', 'activities', 'departures', 'arrivals', 'gaps'] as SearchTarget[]).map((t) => (
             <button
               type="button"
               role="radio"
