@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api } from '../api';
 
-/** 見出しの右端のメニュー：ログインしている利用者の名前、ブックマーク、このアプリについて、ログアウト */
+/** 見出しの右端のメニュー：ログインしている利用者の名前・ログアウト、ブックマーク、このアプリについて・再読み込み */
 export function HeaderMenu({ user }: { user: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -36,12 +36,6 @@ export function HeaderMenu({ user }: { user: string }) {
           <div class="header-menu-user muted" title="ログインしている利用者">
             {user}
           </div>
-          <a role="menuitem" href="#/bookmarks">
-            ブックマーク
-          </a>
-          <a role="menuitem" href="#/about">
-            このアプリについて
-          </a>
           <button
             type="button"
             role="menuitem"
@@ -49,6 +43,18 @@ export function HeaderMenu({ user }: { user: string }) {
             onClick={() => api.logout().finally(() => location.replace('/'))}
           >
             ログアウト
+          </button>
+          <div class="header-menu-sep" role="separator" />
+          <a role="menuitem" href="#/bookmarks">
+            ブックマーク
+          </a>
+          <div class="header-menu-sep" role="separator" />
+          <a role="menuitem" href="#/about">
+            このアプリについて
+          </a>
+          {/* スマホの PWA では、地図のある画面で「下に引っ張って読み込み直す」がしにくいので、メニューから読み込み直せるようにする */}
+          <button type="button" role="menuitem" onClick={() => location.reload()}>
+            再読み込み
           </button>
         </div>
       )}

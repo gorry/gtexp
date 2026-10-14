@@ -322,9 +322,12 @@ textarea {
 .header-menu-user {
   padding: 6px 12px;
   font-size: 13px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
   overflow-wrap: anywhere;
+}
+
+.header-menu-sep {
+  border-top: 1px solid var(--border);
+  margin: 4px 0;
 }
 
 .header-menu-list a,
