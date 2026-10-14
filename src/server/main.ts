@@ -18,6 +18,8 @@ import { importSwarmZip, splitSwarmZips } from './swarm';
 import { errorDetail, fetchOsm, lookupOsm, osmRun } from './osm';
 import { importOsmPois } from './osmpoi';
 import { buildPoiKeys, listEntries, listNames } from './lists';
+import { deleteSwarm, deleteTakeout, deleteTimeline } from './purge';
+import { deleteUserData, exportUserData, importUserData } from './userdata';
 import { ICON_MAX_BYTES, deleteIcon, iconType, iconVersion, readIcon, saveIcon } from './usericon';
 import { CONTENT_TYPES, EXPORT_FORMATS, render, type ExportData, type ExportFormat } from './exporter';
 import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget, ZipImportResult } from '../shared/types';
@@ -426,6 +428,51 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     sendJson(res, 200, { ok: true }, {
       'Set-Cookie': issueSessionCookie(config.sessionSecret, user, updated.sessionKey, config.sessionDays, isHttps(req)),
     });
+    return;
+  }
+  const purge = /^\/api\/data\/(timeline|takeout|swarm|userdata)$/.exec(path);
+  if (purge && method === 'DELETE') {
+    // 取り込みの画面から、送ったデータを消す（取り込みの途中は断る）
+    if (importing.has(user)) throw new HttpError(409, '取り込みか住所の割り当てを処理しています。終わってから、もう一度試してください。');
+    importing.add(user);
+    try {
+      const dir = userDir(config.dataDir, user);
+      if (purge[1] === 'timeline') deleteTimeline(db, dir);
+      else if (purge[1] === 'takeout') {
+        const o = assignOptions(config);
+        deleteTakeout(db, dir, { stopM: o.labelStopM, labelM: o.takeout.labelM, tzOffsetMinutes: o.tzOffsetMinutes });
+      } else if (purge[1] === 'swarm') deleteSwarm(db, dir);
+      else deleteUserData(db);
+    } finally {
+      importing.delete(user);
+    }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+  if (path === '/api/userdata' && method === 'GET') {
+    // 自分で付けた名前・メモ・タグとブックマークを JSON で書き出す（ファイルとして保存させる）
+    const day = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    res.writeHead(200, {
+      'Content-Type': MIME['.json'],
+      'Content-Disposition': `attachment; filename="gtexp-userdata-${user}-${day}.json"`,
+      'Cache-Control': 'no-store',
+    });
+    res.end(JSON.stringify(exportUserData(db), null, 2));
+    return;
+  }
+  if (path === '/api/userdata' && method === 'POST') {
+    let data: unknown;
+    try {
+      data = await readJsonBody(req, 50_000_000);
+    } catch (e) {
+      if (e instanceof HttpError && e.status === 400) throw new HttpError(400, 'ファイルを読み込めませんでした。「書き出す」で保存したファイルを選んでください。');
+      throw e;
+    }
+    try {
+      sendJson(res, 200, importUserData(db, data));
+    } catch (e) {
+      throw new HttpError(400, (e as Error).message);
+    }
     return;
   }
   if (path === '/api/config' && method === 'GET') {

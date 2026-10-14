@@ -185,6 +185,8 @@ export interface SummaryResponse {
   };
   /** Foursquare Swarm の状態（チェックインの件数・店の数・店の名前が付いた地点の数・入れた日時） */
   swarm: { checkins: number; venues: number; places: number; loadedAt: string | null };
+  /** 自分で付けた名前・メモ・タグのある場所の数と、ブックマークの数 */
+  userData: { notes: number; bookmarks: number };
   /** OpenStreetMap の状態。施設名は手元のデータ（pois 件・loadedAt に入れた）から、住所は Nominatim から少しずつ */
   osm: {
     pois: number;

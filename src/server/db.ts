@@ -323,6 +323,7 @@ export function openUserDb(dataDir: string, user: string): DatabaseSync {
   return db;
 }
 
+import { userDataStatus } from './userdata';
 import { transaction } from './tx';
 export { transaction };
 
@@ -518,6 +519,7 @@ export function getSummary(db: DatabaseSync): SummaryResponse {
       labelStops: (db.prepare('SELECT COUNT(*) AS n FROM visits WHERE estimated = 1').get() as Row).n,
     },
     swarm: swarmStatus(db),
+    userData: userDataStatus(db),
     osm: { ...osmAddrStatus(db), ...osmPoiStatus(db), poiPlaces: (db.prepare("SELECT COUNT(*) AS n FROM place_labels WHERE source = 'osm-poi'").get() as Row).n },
   };
 }

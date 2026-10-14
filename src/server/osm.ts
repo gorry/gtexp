@@ -20,7 +20,8 @@ import { setKv } from './labelstore';
 //
 // 結果は place_labels に取得方法 osm-addr として保存し、調べたこと（見つからなかった場合も）は label_checks に記録する。
 
-const ADDR = 'osm-addr';
+export const OSM_ADDR_SOURCE = 'osm-addr';
+const ADDR = OSM_ADDR_SOURCE;
 
 /** 規約の「1分あたり 4 件まで」を守るための、問い合わせの間隔の下限（秒） */
 const MIN_WAIT_FLOOR = 15;

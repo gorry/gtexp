@@ -1666,3 +1666,28 @@ a.trip-banner:hover {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.3);
   transform: translateY(50%);
 }
+
+/* ---- 送ったデータの削除（取り込みの画面） ---- */
+.delete-data {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.danger-text {
+  color: var(--error);
+}
+
+.delete-confirm p {
+  margin: 4px 0;
+}
+
+.danger-btn {
+  background: var(--error);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-weight: 600;
+  cursor: pointer;
+}

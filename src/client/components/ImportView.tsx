@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { PROFILE } from '../../shared/profile.gen';
 import type { ImportRecord, SummaryResponse, TakeoutImportStats, ZipImportResult } from '../../shared/types';
-import { usePageTitle } from '../bookmarks';
+import { reloadBookmarks, usePageTitle } from '../bookmarks';
 import { api, uploadExport, uploadTakeout, type ImportResult, type UploadStage } from '../api';
 import { assignSummary } from '../format';
 import { clearCalendarCache } from './Calendar';
@@ -112,6 +112,16 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
     }
   }, []);
 
+  /** データを削除したあと：表示と、日付・年の一覧を読み直す */
+  const afterDelete = () => {
+    setResult(null);
+    setTakeoutResult(null);
+    clearCalendarCache();
+    clearYearsCache();
+    onImported();
+    reload();
+  };
+
   /** 取り込み直さずに、まだ調べていない地点の住所を調べる */
   const assignNow = async () => {
     setAssigning(true);
@@ -152,6 +162,13 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
               <li>移動 {summary.activities.toLocaleString()} 件・経路の点 {summary.points.toLocaleString()} 個</li>
               <li>旅行 {summary.trips.toLocaleString()} 件</li>
             </ul>
+          )}
+          {summary.visits > 0 && (
+            <DeleteData
+              kind="timeline"
+              note="タイムラインのデータ（滞在・移動・経路・旅行）と取り込みの履歴、場所に付いた住所・地点名を削除します。自分で付けた名前・メモ・タグとブックマーク、OpenStreetMap から取得した住所は残ります。元に戻すには、もう一度ファイルを送ってください。"
+              onDeleted={afterDelete}
+            />
           )}
         </section>
       )}
@@ -311,6 +328,13 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           ) : (
             <p>まだ入れていません。上の「ファイルを送る」で Takeout の zip を送ると、Google マップで保存した場所やラベルの名前を地点名として使えます。</p>
           )}
+          {summary.takeout.loadedAt && (
+            <DeleteData
+              kind="takeout"
+              note="Google Takeout から取り込んだデータ（保存した場所・ラベル・保存リスト・クチコミ・マイマップ）と、そこから付けた地点名・住所、ラベルを付けた場所への立ち寄りを削除します。元に戻すには、もう一度ファイルを送ってください。"
+              onDeleted={afterDelete}
+            />
+          )}
         </section>
       )}
 
@@ -328,7 +352,20 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           ) : (
             <p>まだ入れていません。上の「ファイルを送る」で Swarm の書き出しの zip を送ると、チェックインした店の名前を地点名として使えます。</p>
           )}
+          {summary.swarm.loadedAt && (
+            <DeleteData kind="swarm" note="Foursquare Swarm から取り込んだチェックインと、そこから付けた店の名前を削除します。元に戻すには、もう一度ファイルを送ってください。" onDeleted={afterDelete} />
+          )}
         </section>
+      )}
+
+      {summary && (
+        <UserDataCard
+          status={summary.userData}
+          onChanged={() => {
+            reloadBookmarks().catch(() => {});
+            reload();
+          }}
+        />
       )}
 
       {summary && (
@@ -387,5 +424,110 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
         </section>
       )}
     </div>
+  );
+}
+
+/** 送ったデータを削除する。押すと「本当に削除しますか？」を出し、もう一度「削除」を押したら削除する */
+function DeleteData({ kind, note, onDeleted }: { kind: 'timeline' | 'takeout' | 'swarm' | 'userdata'; note: string; onDeleted: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const run = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await api.deleteData(kind);
+      setAsking(false);
+      onDeleted();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div class="delete-data">
+      {asking ? (
+        <div class="delete-confirm">
+          <p>
+            <strong>本当に削除しますか？</strong>
+          </p>
+          <p class="muted">{note}</p>
+          <div class="visit-actions">
+            <button type="button" class="danger-btn" disabled={busy} onClick={run}>
+              {busy ? '削除しています…' : '削除'}
+            </button>
+            <button type="button" class="text-btn" disabled={busy} onClick={() => setAsking(false)}>
+              キャンセル
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button type="button" class="text-btn danger-text" onClick={() => setAsking(true)}>
+          削除
+        </button>
+      )}
+      {error && <p class="error">{error}</p>}
+    </div>
+  );
+}
+
+/** 自分で付けた名前・メモ・タグとブックマーク：書き出す（JSON）・読み込む（足し合わせる）・削除する */
+function UserDataCard({ status, onChanged }: { status: { notes: number; bookmarks: number }; onChanged: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const onFile = async (e: Event) => {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    setBusy(true);
+    setMessage('');
+    setError('');
+    try {
+      const r = await api.importUserData(file);
+      setMessage(`名前・メモ・タグ ${r.notes.toLocaleString()} か所と、ブックマーク ${r.bookmarks.toLocaleString()} 件を読み込みました。`);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const empty = !status.notes && !status.bookmarks;
+  return (
+    <section class="card">
+      <h3>自分で付けた名前・メモ・タグとブックマーク</h3>
+      <ul class="stats">
+        <li>名前・メモ・タグを付けた場所 {status.notes.toLocaleString()} か所</li>
+        <li>ブックマーク {status.bookmarks.toLocaleString()} 件</li>
+      </ul>
+      <div class="visit-actions">
+        {empty ? (
+          <span class="file-button disabled">書き出す（JSON）</span>
+        ) : (
+          <a class="file-button" href="/api/userdata" download>
+            書き出す（JSON）
+          </a>
+        )}
+        <label class={`file-button${busy ? ' disabled' : ''}`}>
+          {busy ? '読み込んでいます…' : '読み込む'}
+          <input type="file" accept=".json,application/json" hidden disabled={busy} onChange={onFile} />
+        </label>
+      </div>
+      <p class="muted note">
+        書き出したファイルは、ほかの利用者やサーバーに移すときや、控えとして使えます。読み込むと、今あるものに足し合わせます（同じ場所の名前・メモ・タグと、同じ画面のブックマークの名前は、ファイルの内容に置き換えます）。
+      </p>
+      {message && <p>{message}</p>}
+      {error && <p class="error">{error}</p>}
+      {!empty && (
+        <DeleteData
+          kind="userdata"
+          note="自分で付けた名前・メモ・タグと、ブックマークをすべて削除します。先に「書き出す」で保存しておくと、あとで「読み込む」で戻せます。"
+          onDeleted={onChanged}
+        />
+      )}
+    </section>
   );
 }

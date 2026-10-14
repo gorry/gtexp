@@ -62,6 +62,18 @@ export const api = {
     return data;
   },
   deleteIcon: () => request<{ icon: string | null }>('DELETE', '/api/me/icon'),
+  /** 送ったデータを消す（タイムライン・Google Takeout・Foursquare Swarm） */
+  deleteData: (kind: 'timeline' | 'takeout' | 'swarm' | 'userdata') => request<{ ok: boolean }>('DELETE', `/api/data/${kind}`),
+  /** 自分で付けた名前・メモ・タグとブックマークを読み込む（書き出したファイルの中身をそのまま送る） */
+  importUserData: async (file: Blob): Promise<{ notes: number; bookmarks: number }> => {
+    const res = await fetch('/api/userdata', { method: 'POST', body: file, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized();
+      throw new ApiError(res.status, data.error ?? 'ファイルを読み込めませんでした。もう一度試してください。');
+    }
+    return data;
+  },
   changePassword: (current: string, next: string) => request<{ ok: boolean }>('POST', '/api/me/password', { current, next }),
   config: () => request<ClientConfig>('GET', '/api/config'),
   summary: () => request<SummaryResponse>('GET', '/api/summary'),
