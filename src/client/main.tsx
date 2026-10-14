@@ -1,4 +1,4 @@
-import { render } from 'preact';
+import { render, type ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { PROFILE } from '../shared/profile.gen';
 import type { ClientConfig } from '../shared/types';
@@ -17,6 +17,7 @@ import { PlacesView } from './components/PlacesView';
 import { SearchView } from './components/SearchView';
 import { TripView } from './components/TripView';
 import { TripsView } from './components/TripsView';
+import { openTab, tabHash } from './tabs';
 import './styles.css';
 
 // 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import, #/bookmarks, #/about）
@@ -74,13 +75,14 @@ function App() {
         </a>
         <nav>
           <a href={`#/day/${date}`} class={current === 'day' ? 'active' : ''}>日付</a>
-          <a href="#/places" class={current === 'places' || current === 'place' ? 'active' : ''}>場所</a>
-          <a href="#/search" class={current === 'search' ? 'active' : ''}>集計</a>
-          <a href="#/trips" class={current === 'trips' || current === 'trip' ? 'active' : ''}>旅行</a>
-          <a href="#/lists" class={current === 'lists' ? 'active' : ''}>
+          {/* 場所・集計・旅行・保存リストは、前に開いていた条件のまま戻る（tabs.ts） */}
+          <TabLink page="places" active={current === 'places' || current === 'place'}>場所</TabLink>
+          <TabLink page="search" active={current === 'search'}>集計</TabLink>
+          <TabLink page="trips" active={current === 'trips' || current === 'trip'}>旅行</TabLink>
+          <TabLink page="lists" active={current === 'lists'}>
             <span class="nav-full">保存リスト</span>
             <span class="nav-short">リスト</span>
-          </a>
+          </TabLink>
           <a href="#/import" class={current === 'import' ? 'active' : ''}>取り込み</a>
         </nav>
         <BookmarkButton />
@@ -109,6 +111,22 @@ function App() {
         )}
       </main>
     </div>
+  );
+}
+
+/** 見出しのタブ。href は描いたときの値なので、押したときの値で移る */
+function TabLink({ page, active, children }: { page: string; active: boolean; children: ComponentChildren }) {
+  return (
+    <a
+      href={tabHash(page)}
+      class={active ? 'active' : ''}
+      onClick={(e) => {
+        e.preventDefault();
+        openTab(page);
+      }}
+    >
+      {children}
+    </a>
   );
 }
 
