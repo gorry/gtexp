@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Activity, PlaceKind, SearchGroup, SearchGroupRow, SearchResponse, SearchTarget, Visit } from '../../shared/types';
+import type { Activity, PlaceKind, RecordGap, SearchGroup, SearchGroupRow, SearchResponse, SearchTarget, Visit } from '../../shared/types';
 import { api } from '../api';
 import { filteredTitle, usePageTitle } from '../bookmarks';
-import { ACTIVITY_TYPES, WEEKDAYS, activityLabel, duration, hhmm, km, semanticLabel, shortDate, totalDuration } from '../format';
+import { ACTIVITY_TYPES, WEEKDAYS, activityLabel, duration, hhmm, km, semanticLabel, shortDate, timeOnDay, totalDuration } from '../format';
 import { BarChart, BarList, type Bar } from './BarChart';
 import { ExportLinks } from './ExportLinks';
 import { visitName } from './MapView';
@@ -52,7 +52,7 @@ function filtersToQuery(f: Filters, forApi: boolean): URLSearchParams {
   if (f.target === 'visits') {
     if (f.q) p.set('q', f.q);
     if (f.kind) p.set('kind', f.kind);
-  } else if (f.modes.length) {
+  } else if (f.target === 'activities' && f.modes.length) {
     p.set('modes', f.modes.join(','));
   }
   if (forApi || f.group !== DEFAULTS.group) p.set('group', f.group);
@@ -87,8 +87,10 @@ function measureValue(row: SearchGroupRow, m: Measure): number {
   return row.distanceM;
 }
 
+const TARGET_LABELS: Record<SearchTarget, string> = { visits: '滞在', activities: '移動', gaps: '記録なし' };
+
 function measureText(row: SearchGroupRow, m: Measure, target: SearchTarget): string {
-  if (m === 'count') return `${row.count.toLocaleString()}${target === 'visits' ? '回' : '件'}`;
+  if (m === 'count') return `${row.count.toLocaleString()}${target === 'activities' ? '件' : '回'}`;
   if (m === 'days') return `${row.days.toLocaleString()}日`;
   if (m === 'time') return totalDuration(row.totalMs);
   return km(row.distanceM);
@@ -146,6 +148,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
   const [data, setData] = useState<(SearchResponse & { group: SearchGroup }) | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [gaps, setGaps] = useState<RecordGap[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const request = useRef(0);
@@ -170,6 +173,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
       if (offset === 0) setData({ ...r, group });
       setVisits((prev) => (offset === 0 ? r.visits : [...prev, ...r.visits]));
       setActivities((prev) => (offset === 0 ? r.activities : [...prev, ...r.activities]));
+      setGaps((prev) => (offset === 0 ? r.gaps : [...prev, ...r.gaps]));
     } catch (e) {
       if (id === request.current) setError((e as Error).message);
     } finally {
@@ -188,12 +192,14 @@ export function SearchView({ query }: { query: URLSearchParams }) {
   }, [JSON.stringify(apiFilters)]);
 
   const isVisits = filters.target === 'visits';
+  const isActivities = filters.target === 'activities';
+  const isGaps = filters.target === 'gaps';
   // グラフと表は、結果を取得したときのまとめ方で描く
   const group = data?.group ?? filters.group;
   const groups = useMemo(() => (data ? fillGroups(data.group, data.groups) : []), [data]);
-  const effectiveMeasure: Measure = isVisits && measure === 'distance' ? 'count' : measure;
+  const effectiveMeasure: Measure = !isActivities && measure === 'distance' ? 'count' : measure;
   const shown = data ? data.totals.count : 0;
-  const loaded = isVisits ? visits.length : activities.length;
+  const loaded = isVisits ? visits.length : isActivities ? activities.length : gaps.length;
 
   const bars: Bar[] = groups.map((g, i) => ({
     key: g.key,
@@ -202,22 +208,23 @@ export function SearchView({ query }: { query: URLSearchParams }) {
     value: measureValue(g, effectiveMeasure),
     valueLabel: measureText(g, effectiveMeasure, filters.target),
   }));
-  const measureName = { count: isVisits ? '回数' : '件数', days: '日数', time: '時間', distance: '距離' }[effectiveMeasure];
+  const countName = isActivities ? '件数' : '回数';
+  const measureName = { count: countName, days: '日数', time: '時間', distance: '距離' }[effectiveMeasure];
 
   return (
     <div class="page wide">
       <h2>集計</h2>
       <section class="card filters-card">
         <div class="segmented" role="radiogroup" aria-label="対象">
-          {(['visits', 'activities'] as SearchTarget[]).map((t) => (
+          {(['visits', 'activities', 'gaps'] as SearchTarget[]).map((t) => (
             <button
               type="button"
               role="radio"
               aria-checked={filters.target === t}
               class={filters.target === t ? 'active' : ''}
-              onClick={() => set({ target: t, group: t === 'visits' && filters.group === 'mode' ? 'year' : filters.group })}
+              onClick={() => set({ target: t, group: t !== 'activities' && filters.group === 'mode' ? 'year' : filters.group })}
             >
-              {t === 'visits' ? '滞在' : '移動'}
+              {TARGET_LABELS[t]}
             </button>
           ))}
         </div>
@@ -239,7 +246,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
               ))}
             </select>
           </div>
-        ) : (
+        ) : isActivities ? (
           <div class="chips" aria-label="移動手段">
             {ACTIVITY_TYPES.map((t) => {
               const [icon, label] = activityLabel(t);
@@ -252,6 +259,8 @@ export function SearchView({ query }: { query: URLSearchParams }) {
             })}
             <span class="muted chips-note">{filters.modes.length ? '' : 'すべての移動手段'}</span>
           </div>
+        ) : (
+          <p class="muted note">滞在にも移動にも記録されていない時間です（10 分未満の隙間は除きます）。端末の電源が切れていたときや、位置の記録が止まっていたときに起こります。</p>
         )}
         {isVisits && !filters.q && !filters.kind && (
           <p class="muted note">入れ子の場所は数えていません（時間が二重にならないように）。場所で絞ると入れ子も含めます。</p>
@@ -262,26 +271,26 @@ export function SearchView({ query }: { query: URLSearchParams }) {
       {data && (
         <>
           <div class="stat-tiles">
-            <div class="stat"><span class="stat-value">{data.totals.count.toLocaleString()}</span><span class="stat-label">{isVisits ? '回' : '件'}</span></div>
+            <div class="stat"><span class="stat-value">{data.totals.count.toLocaleString()}</span><span class="stat-label">{isActivities ? '件' : '回'}</span></div>
             <div class="stat"><span class="stat-value">{data.totals.days.toLocaleString()}</span><span class="stat-label">日</span></div>
-            <div class="stat"><span class="stat-value">{totalDuration(data.totals.totalMs)}</span><span class="stat-label">{isVisits ? '滞在' : '移動時間'}</span></div>
-            {!isVisits && <div class="stat"><span class="stat-value">{km(data.totals.distanceM)}</span><span class="stat-label">距離</span></div>}
+            <div class="stat"><span class="stat-value">{totalDuration(data.totals.totalMs)}</span><span class="stat-label">{isVisits ? '滞在' : isActivities ? '移動時間' : '記録なし'}</span></div>
+            {isActivities && <div class="stat"><span class="stat-value">{km(data.totals.distanceM)}</span><span class="stat-label">距離</span></div>}
           </div>
 
           <section class="card">
             <div class="filter-row chart-controls">
               <select value={filters.group} onChange={(e) => set({ group: e.currentTarget.value as SearchGroup })} aria-label="まとめ方">
                 {Object.entries(GROUP_LABELS)
-                  .filter(([g]) => !isVisits || g !== 'mode')
+                  .filter(([g]) => isActivities || g !== 'mode')
                   .map(([v, l]) => (
                     <option value={v}>{l}</option>
                   ))}
               </select>
               <select value={effectiveMeasure} onChange={(e) => set({ measure: e.currentTarget.value as Measure })} aria-label="値">
-                <option value="count">{isVisits ? '回数' : '件数'}</option>
+                <option value="count">{countName}</option>
                 <option value="days">日数</option>
                 <option value="time">時間</option>
-                {!isVisits && <option value="distance">距離</option>}
+                {isActivities && <option value="distance">距離</option>}
               </select>
             </div>
             {group === 'mode' ? (
@@ -304,10 +313,10 @@ export function SearchView({ query }: { query: URLSearchParams }) {
                 <thead>
                   <tr>
                     <th>{GROUP_LABELS[group].replace(/ごと.*/, '')}</th>
-                    <th>{isVisits ? '回数' : '件数'}</th>
+                    <th>{countName}</th>
                     <th>日数</th>
                     <th>時間</th>
-                    {!isVisits && <th>距離</th>}
+                    {isActivities && <th>距離</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -317,7 +326,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
                       <td>{g.count.toLocaleString()}</td>
                       <td>{g.days.toLocaleString()}</td>
                       <td>{totalDuration(g.totalMs)}</td>
-                      {!isVisits && <td>{km(g.distanceM)}</td>}
+                      {isActivities && <td>{km(g.distanceM)}</td>}
                     </tr>
                   ))}
                 </tbody>
@@ -327,12 +336,14 @@ export function SearchView({ query }: { query: URLSearchParams }) {
 
           <section class="card">
             <h3>記録（新しい順）</h3>
-            <ExportLinks source="search" params={filtersToQuery(filters, true)} count={shown} />
+            {!isGaps && <ExportLinks source="search" params={filtersToQuery(filters, true)} count={shown} />}
             {shown === 0 && <p class="muted">条件に合う記録はありません。</p>}
             <ul class="record-list">
               {isVisits
                 ? visits.map((v) => <VisitRow v={v} />)
-                : activities.map((a) => <ActivityRow a={a} />)}
+                : isActivities
+                  ? activities.map((a) => <ActivityRow a={a} />)
+                  : gaps.map((g) => <GapRow g={g} />)}
             </ul>
             {loaded < shown && (
               <button type="button" class="more-btn" disabled={loading} onClick={() => load(loaded)}>
@@ -359,6 +370,18 @@ function VisitRow({ v }: { v: Visit }) {
       {v.hierarchyLevel > 0 && <span class="chip">入れ子</span>}
       {v.estimated && <EstimatedChip />}
       {v.note && <TagList tags={v.note.tags} />}
+    </li>
+  );
+}
+
+/** 記録なし。日をまたぐときは終わりにも日付を付ける */
+function GapRow({ g }: { g: RecordGap }) {
+  const date = g.start.slice(0, 10);
+  return (
+    <li>
+      <a class="record-date" href={`#/day/${date}`}>{shortDate(date)}</a>
+      <span class="muted">{hhmm(g.start)}〜{timeOnDay(g.end, date)}（{duration(g.startMs, g.endMs)}）</span>
+      <span>記録なし</span>
     </li>
   );
 }

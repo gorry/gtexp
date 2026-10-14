@@ -23,6 +23,7 @@ import type {
   PlacesExtentResponse,
   PlacesResponse,
   PlaceVisit,
+  RecordGap,
   SearchGroup,
   SearchGroupRow,
   SearchResponse,
@@ -455,7 +456,8 @@ export function getDay(db: DatabaseSync, date: string, tzOffsetMinutes: number):
     .prepare('SELECT * FROM trips WHERE start_ms < ? AND end_ms > ? ORDER BY start_ms')
     .all(to, from)
     .map(toTrip);
-  return { date, visits, activities, path, trips };
+  const gaps = gapsIn(db, from, to).map(toGap);
+  return { date, visits, activities, path, trips, gaps };
 }
 
 export function getCalendar(db: DatabaseSync, year: number): CalendarResponse {
@@ -804,22 +806,26 @@ function likePattern(q: string): string {
  * （入れ子まで数えると時間が二重になるため）。場所で絞ったときは入れ子も含める。
  */
 export function search(db: DatabaseSync, query: SearchQuery): SearchResponse {
+  if (query.target === 'gaps') return searchGaps(db, query);
   const isVisits = query.target === 'visits';
   const t = isVisits ? 'v' : 'a';
-  const where: string[] = [];
-  const params: (string | number)[] = [];
+  // 期間・曜日（始まった日で絞る）と、それ以外の条件を分けて持つ（時間の合計は、期間・曜日を切り分けで扱うため）
+  const dateWhere: string[] = [];
+  const dateParams: (string | number)[] = [];
   if (query.from) {
-    where.push(`${t}.local_date >= ?`);
-    params.push(query.from);
+    dateWhere.push(`${t}.local_date >= ?`);
+    dateParams.push(query.from);
   }
   if (query.to) {
-    where.push(`${t}.local_date <= ?`);
-    params.push(query.to);
+    dateWhere.push(`${t}.local_date <= ?`);
+    dateParams.push(query.to);
   }
   if (query.weekdays.length) {
-    where.push(`CAST(strftime('%w', ${t}.local_date) AS INTEGER) IN (${query.weekdays.map(() => '?').join(',')})`);
-    params.push(...query.weekdays);
+    dateWhere.push(`CAST(strftime('%w', ${t}.local_date) AS INTEGER) IN (${query.weekdays.map(() => '?').join(',')})`);
+    dateParams.push(...query.weekdays);
   }
+  const where: string[] = [];
+  const params: (string | number)[] = [];
   let from: string;
   if (isVisits) {
     from = `visits v LEFT JOIN places p ON p.place_id = v.place_id LEFT JOIN place_notes n ON n.place_id = v.place_id
@@ -842,6 +848,10 @@ export function search(db: DatabaseSync, query: SearchQuery): SearchResponse {
       params.push(...query.modes);
     }
   }
+  const otherWhere = [...where];
+  const otherParams = [...params];
+  where.unshift(...dateWhere);
+  params.unshift(...dateParams);
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const distance = isVisits ? '0' : 'SUM(a.distance_m)';
   const measures = `COUNT(*) AS cnt, COUNT(DISTINCT ${t}.local_date) AS days,
@@ -866,6 +876,22 @@ export function search(db: DatabaseSync, query: SearchQuery): SearchResponse {
     .all(...params)
     .map((r: Row): SearchGroupRow => ({ key: String(r.k), ...toTotals(r) }));
 
+  // 時間の合計は、期間・曜日・まとめ方の切れ目で切り分け、重なった時間は 1 回だけ数える（回数・日数は始まった日で数える）
+  const time = searchTime(db, from, otherWhere, otherParams, t, query, isVisits);
+  totals.totalMs = time.total;
+  const byKey = new Map(groups.map((g) => [g.key, g]));
+  for (const [key, ms] of time.byKey) {
+    const g = byKey.get(key);
+    if (g) g.totalMs = ms;
+    else if (ms > 0) {
+      const row: SearchGroupRow = { key, count: 0, days: 0, totalMs: ms, distanceM: 0 };
+      groups.push(row);
+      byKey.set(key, row);
+    }
+  }
+  for (const g of groups) if (!time.byKey.has(g.key)) g.totalMs = 0;
+  groups.sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
   let visits: Visit[] = [];
   let activities: Activity[] = [];
   if (isVisits) {
@@ -884,7 +910,213 @@ export function search(db: DatabaseSync, query: SearchQuery): SearchResponse {
       .all(...params, query.limit, query.offset)
       .map(toActivity);
   }
-  return { target: query.target, totals, groups, visits, activities };
+  return { target: query.target, totals, groups, visits, activities, gaps: [] };
+}
+
+const HOUR_MS = 3600_000;
+const DAY_MS = 86400_000;
+
+/**
+ * 集計の時間の合計。条件に合う滞在（移動）のうち、期間にかかるものを集め、重なった時間は 1 回だけ数えたうえで、
+ * 現地時刻の日（まとめ方が時間帯なら時）の切れ目で切り分け、期間・曜日に入る部分だけを、まとめ方の区切りごとに足す。
+ * 月をまたぐ滞在は、それぞれの月に分けて数える（始まった月にまとめると、月の日数を超えることがある）。
+ * 現地時刻は、それぞれの記録の始まりの時差を使う
+ */
+function searchTime(
+  db: DatabaseSync,
+  from: string,
+  where: string[],
+  params: (string | number)[],
+  t: string,
+  query: SearchQuery,
+  isVisits: boolean,
+): { total: number; byKey: Map<string, number> } {
+  const w = [...where];
+  const p = [...params];
+  // 期間の前後 1 日ずつ広く取る（時差があるため。切り分けたあとに日付で絞る）
+  if (query.from) {
+    w.push(`${t}.end_ms > ?`);
+    p.push(Date.parse(`${query.from}T00:00:00Z`) - DAY_MS);
+  }
+  if (query.to) {
+    w.push(`${t}.start_ms < ?`);
+    p.push(Date.parse(`${query.to}T00:00:00Z`) + 2 * DAY_MS);
+  }
+  const typeCol = isVisits ? `''` : 'a.type';
+  const rows = db
+    .prepare(`SELECT ${t}.start_ms AS s, ${t}.end_ms AS e, ${t}.start_local AS sl, ${typeCol} AS ty FROM ${from} ${w.length ? `WHERE ${w.join(' AND ')}` : ''} ORDER BY ${t}.start_ms`)
+    .all(...p) as { s: number; e: number; sl: string; ty: string }[];
+
+  // 重なった時間を 1 つにまとめる（移動手段ごとにまとめるときは、手段ごとに）
+  const byMode = query.group === 'mode' && !isVisits;
+  const merged: { s: number; e: number; off: number; ty: string }[] = [];
+  const lastOf = new Map<string, { s: number; e: number; off: number; ty: string }>();
+  for (const r of rows) {
+    if (!(r.e > r.s)) continue;
+    const k = byMode ? r.ty : '';
+    const last = lastOf.get(k);
+    if (last && r.s <= last.e) last.e = Math.max(last.e, r.e);
+    else {
+      const m = { s: r.s, e: r.e, off: offsetMs(r.sl), ty: r.ty };
+      merged.push(m);
+      lastOf.set(k, m);
+    }
+  }
+
+  let total = 0;
+  const byKey = new Map<string, number>();
+  for (const m of merged) {
+    eachPiece(m.s, m.e, m.off, query, (ms, local) => {
+      total += ms;
+      const k = groupKeyOf(query.group, local, isVisits ? '' : m.ty);
+      byKey.set(k, (byKey.get(k) ?? 0) + ms);
+    });
+  }
+  // 移動手段ごとのときは、全体の合計も重なりを 1 回だけ数えたものにする
+  if (byMode) total = searchTime(db, from, where, params, t, { ...query, group: 'year' }, isVisits).total;
+  return { total, byKey };
+}
+
+/** まとめ方の区切り（年 "2025"・月 "2025-08"・曜日 "0"〜"6"・時 "00"〜"23"・移動手段）。local は現地時刻の ISO 形式 */
+function groupKeyOf(group: SearchGroup, local: string, mode: string): string {
+  switch (group) {
+    case 'year':
+      return local.slice(0, 4);
+    case 'month':
+      return local.slice(0, 7);
+    case 'weekday':
+      return String(new Date(`${local.slice(0, 10)}T00:00:00Z`).getUTCDay());
+    case 'hour':
+      return local.slice(11, 13);
+    case 'mode':
+      return mode || local.slice(0, 4);
+  }
+}
+
+/** 日付（YYYY-MM-DD）が集計の期間・曜日に入るか */
+function inSearchPeriod(query: SearchQuery, date: string): boolean {
+  return (
+    (!query.from || date >= query.from) &&
+    (!query.to || date <= query.to) &&
+    (!query.weekdays.length || query.weekdays.includes(new Date(`${date}T00:00:00Z`).getUTCDay()))
+  );
+}
+
+/**
+ * [s, e) を現地時刻の日（まとめ方が時間帯なら時）の切れ目で切り分け、期間・曜日に入る部分ごとに fn を呼ぶ。
+ * local は切り分けた部分の始まりの現地時刻（ISO 形式。末尾の Z は、時差を足した値という意味で付いている）
+ */
+function eachPiece(s: number, e: number, off: number, query: SearchQuery, fn: (ms: number, local: string) => void): void {
+  const step = query.group === 'hour' ? HOUR_MS : DAY_MS;
+  for (let c = s; c < e; ) {
+    const local = c + off;
+    const end = Math.min(e, Math.floor(local / step) * step + step - off);
+    const iso = new Date(local).toISOString();
+    if (inSearchPeriod(query, iso.slice(0, 10))) fn(end - c, iso);
+    c = end;
+  }
+}
+
+/** 記録なしとみなす最短の長さ（前後の記録のつなぎ目の短い隙間は数えない） */
+const GAP_MIN_MS = 10 * 60_000;
+
+interface GapSpan {
+  s: number;
+  e: number;
+  /** 直前の記録の時差 */
+  off: number;
+}
+
+/**
+ * [lo, hi) にかかる記録なしの時間（滞在にも移動にも入っていない、GAP_MIN_MS 以上の時間）。範囲の外まで続く空白は、
+ * 切らずにそのまま返す。最初の記録より前と、最後の記録より後は記録なしとしない（取り込む前・まだ取り込んでいない時間なので）
+ */
+export function gapsIn(db: DatabaseSync, lo: number, hi: number): GapSpan[] {
+  type R = { s: number; e: number; sl: string };
+  const rows = db
+    .prepare(
+      `SELECT start_ms AS s, end_ms AS e, start_local AS sl FROM visits WHERE end_ms > ? AND start_ms < ?
+       UNION ALL SELECT start_ms, end_ms, start_local FROM activities WHERE end_ms > ? AND start_ms < ?
+       ORDER BY s`,
+    )
+    .all(lo, hi, lo, hi) as R[];
+  // 範囲の前の最後の記録と、後の最初の記録（範囲をまたぐ空白の端を決める）
+  const pick = (sql: string, v: number[]) =>
+    (['visits', 'activities'] as const).map((tb) => db.prepare(sql.replace('{t}', tb)).get(...v) as R | undefined).filter((r): r is R => !!r);
+  const before = pick('SELECT start_ms AS s, end_ms AS e, start_local AS sl FROM {t} WHERE start_ms < ? AND end_ms <= ? ORDER BY start_ms DESC LIMIT 1', [lo, lo]).sort((a, b) => b.e - a.e)[0];
+  const after = pick('SELECT start_ms AS s, end_ms AS e, start_local AS sl FROM {t} WHERE start_ms >= ? ORDER BY start_ms LIMIT 1', [hi]).sort((a, b) => a.s - b.s)[0];
+  const all = [...(before ? [before] : []), ...rows, ...(after ? [after] : [])];
+  const gaps: GapSpan[] = [];
+  let cursor: number | null = null;
+  let off = 0;
+  for (const r of all) {
+    if (cursor != null && r.s - cursor >= GAP_MIN_MS) gaps.push({ s: cursor, e: r.s, off });
+    if (cursor == null || r.e > cursor) {
+      cursor = r.e;
+      off = offsetMs(r.sl);
+    }
+  }
+  return gaps.filter((g) => g.e > lo && g.s < hi);
+}
+
+/** 現地時刻の ISO 形式（2025-01-12T23:10:00.000+09:00） */
+function localIso(ms: number, off: number): string {
+  const sign = off < 0 ? '-' : '+';
+  const min = Math.abs(off) / 60_000;
+  return `${new Date(ms + off).toISOString().slice(0, 23)}${sign}${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+}
+
+function toGap(g: GapSpan): RecordGap {
+  return { start: localIso(g.s, g.off), end: localIso(g.e, g.off), startMs: g.s, endMs: g.e };
+}
+
+/**
+ * 集計の「記録なし」。回数は、始まった日が期間・曜日に入る空白の数。日数と時間は、空白を日（時）の切れ目で切り分けて、
+ * 期間・曜日に入る部分から数える（日数は、空白が少しでもかかった日の数）。一覧は回数に数えた空白の新しい順
+ */
+function searchGaps(db: DatabaseSync, query: SearchQuery): SearchResponse {
+  const lo = query.from ? Date.parse(`${query.from}T00:00:00Z`) - DAY_MS : 0;
+  const hi = query.to ? Date.parse(`${query.to}T00:00:00Z`) + 2 * DAY_MS : Number.MAX_SAFE_INTEGER;
+  const group: SearchGroup = query.group === 'mode' ? 'year' : query.group;
+  const q = { ...query, group };
+  const totals: SearchTotals = { count: 0, days: 0, totalMs: 0, distanceM: 0 };
+  const rows = new Map<string, SearchGroupRow & { dates: Set<string> }>();
+  const rowOf = (key: string) => {
+    let r = rows.get(key);
+    if (!r) rows.set(key, (r = { key, count: 0, days: 0, totalMs: 0, distanceM: 0, dates: new Set() }));
+    return r;
+  };
+  const allDates = new Set<string>();
+  const counted: GapSpan[] = [];
+  for (const g of gapsIn(db, lo, hi)) {
+    const start = new Date(g.s + g.off).toISOString();
+    if (inSearchPeriod(q, start.slice(0, 10))) {
+      totals.count++;
+      rowOf(groupKeyOf(group, start, '')).count++;
+      counted.push(g);
+    }
+    eachPiece(g.s, g.e, g.off, q, (ms, local) => {
+      totals.totalMs += ms;
+      allDates.add(local.slice(0, 10));
+      const r = rowOf(groupKeyOf(group, local, ''));
+      r.totalMs += ms;
+      r.dates.add(local.slice(0, 10));
+    });
+  }
+  totals.days = allDates.size;
+  const groups = [...rows.values()]
+    .map(({ dates, ...r }): SearchGroupRow => ({ ...r, days: dates.size }))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  const list = counted.reverse();
+  const page = query.limit < 0 ? list.slice(query.offset) : list.slice(query.offset, query.offset + query.limit);
+  return { target: 'gaps', totals, groups, visits: [], activities: [], gaps: page.map(toGap) };
+}
+
+/** 記録の現地時刻（2025-08-31T23:00:00.000+09:00）から、時差をミリ秒で */
+function offsetMs(local: string): number {
+  const m = /([+-])(\d{2}):(\d{2})$/.exec(local ?? '');
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) * 60_000;
 }
 
 /** 旅行の地図に出す経路の点の上限（多いときは間引く） */

@@ -130,6 +130,8 @@ export interface DayResponse {
   activities: Activity[];
   path: PathPoint[];
   trips: Trip[];
+  /** その日にかかる記録なしの時間 */
+  gaps: RecordGap[];
 }
 
 export interface CalendarDay {
@@ -264,7 +266,8 @@ export interface PlaceDetailResponse {
 }
 
 /** 集計の対象とまとめ方 */
-export type SearchTarget = 'visits' | 'activities';
+/** 滞在・移動・記録なし（滞在にも移動にも入っていない時間） */
+export type SearchTarget = 'visits' | 'activities' | 'gaps';
 export type SearchGroup = 'year' | 'month' | 'weekday' | 'hour' | 'mode';
 
 export interface SearchTotals {
@@ -284,9 +287,19 @@ export interface SearchResponse {
   target: SearchTarget;
   totals: SearchTotals;
   groups: SearchGroupRow[];
-  /** 新しい順。target に応じてどちらか一方だけ入る */
+  /** 新しい順。target に応じてどれか 1 つだけ入る */
   visits: Visit[];
   activities: Activity[];
+  gaps: RecordGap[];
+}
+
+/** 記録なし：滞在にも移動にも入っていない時間（短い隙間と、最初の記録より前・最後の記録より後は含めない） */
+export interface RecordGap {
+  /** 現地時刻（直前の記録の時差）。2025-01-12T23:10:00.000+09:00 */
+  start: string;
+  end: string;
+  startMs: number;
+  endMs: number;
 }
 
 /** 旅行の行き先（場所の記録がない placeId もありうるので、座標などは省略可） */

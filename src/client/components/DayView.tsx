@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import type { Activity, ClientConfig, DayResponse, Visit } from '../../shared/types';
+import type { Activity, ClientConfig, DayResponse, RecordGap, Visit } from '../../shared/types';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
 import { activityLabel, addDays, visitNumbers, dateLabel, duration, googleEarthUrl, googleMapsUrl, km, semanticLabel, timeOnDay, todayIn } from '../format';
@@ -13,7 +13,7 @@ interface Props {
   onDate: (date: string) => void;
 }
 
-type Item = { kind: 'visit'; v: Visit; no: number } | { kind: 'activity'; a: Activity };
+type Item = { kind: 'visit'; v: Visit; no: number } | { kind: 'activity'; a: Activity } | { kind: 'gap'; g: RecordGap };
 
 export function DayView({ date, config, onDate }: Props) {
   usePageTitle(dateLabel(date));
@@ -42,6 +42,7 @@ export function DayView({ date, config, onDate }: Props) {
     const list: (Item & { t: number; order: number })[] = [
       ...day.visits.map((v) => ({ kind: 'visit' as const, v, no: numbers.get(v.id) ?? 0, t: v.startMs, order: v.hierarchyLevel })),
       ...day.activities.map((a) => ({ kind: 'activity' as const, a, t: a.startMs, order: -1 })),
+      ...(day.gaps ?? []).map((g) => ({ kind: 'gap' as const, g, t: g.startMs, order: -2 })),
     ];
     // 同じ時刻なら、移動 → 主な滞在 → 入れ子の場所 の順
     return list.sort((x, y) => x.t - y.t || x.order - y.order);
@@ -92,8 +93,10 @@ export function DayView({ date, config, onDate }: Props) {
                 onSelect={() => setSelected(it.v.id)}
                 onNote={updateNote}
               />
-            ) : (
+            ) : it.kind === 'activity' ? (
               <ActivityItem key={`a${it.a.id}`} a={it.a} date={date} />
+            ) : (
+              <GapItem key={`g${it.g.startMs}`} g={it.g} date={date} />
             ),
           )}
         </ol>
@@ -168,6 +171,21 @@ function VisitItem({ v, no, date, selected, onSelect, onNote }: {
           />
         )}
       </div>
+    </li>
+  );
+}
+
+/** 記録なし（滞在にも移動にも記録されていない時間） */
+function GapItem({ g, date }: { g: RecordGap; date: string }) {
+  return (
+    <li class="activity gap">
+      <span class="activity-icon">⋯</span>
+      <span>
+        記録なし
+        <span class="muted">
+          {' '}{timeOnDay(g.start, date)} 〜 {timeOnDay(g.end, date)}（{duration(g.startMs, g.endMs)}）
+        </span>
+      </span>
     </li>
   );
 }

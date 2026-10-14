@@ -649,6 +649,12 @@ textarea {
   text-align: center;
 }
 
+/* 記録なし（滞在にも移動にも記録されていない時間） */
+.activity.gap {
+  color: var(--muted);
+  border-left-style: dotted;
+}
+
 .map,
 .map-canvas {
   position: absolute;
