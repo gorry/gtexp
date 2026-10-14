@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import { PROFILE } from '../../shared/profile.gen';
 import type { ImportRecord, SummaryResponse, TakeoutImportStats, ZipImportResult } from '../../shared/types';
 import { reloadBookmarks, usePageTitle } from '../bookmarks';
 import { api, uploadExport, uploadTakeout, type ImportResult, type UploadStage } from '../api';
 import { assignSummary } from '../format';
 import { clearCalendarCache } from './Calendar';
 import { clearYearsCache } from './PeriodPicker';
-import { AreaCredit, OsmCredit } from './PlaceView';
 
 const SHARE_CACHE = 'gtexp-share';
 const SHARE_KEY = '/shared-file';
@@ -21,29 +19,15 @@ async function takeSharedFile(): Promise<{ blob: Blob; name: string } | null> {
   return { blob: await res.blob(), name: decodeURIComponent(res.headers.get('X-File-Name') ?? 'shared.json') };
 }
 
-/** 管理者向けの説明（位置参照情報・OpenStreetMap などのサーバーのデータは、この画面ではなく管理者が入れる） */
-const ADMIN_DOC_URL = PROFILE.projectUrl ? `${PROFILE.projectUrl}/blob/main/deploy/README.md` : '';
-
-function AdminNote({ text }: { text: string }) {
-  return (
-    <p class="muted">
-      {text}
-      {ADMIN_DOC_URL && (
-        <>
-          （管理者向けの説明：
-          <a href={ADMIN_DOC_URL} target="_blank" rel="noopener">
-            設置手順
-          </a>
-          ）
-        </>
-      )}
-      。
-    </p>
-  );
-}
-
 /** Takeout か Swarm の zip か（それ以外はタイムラインのエクスポートとして送る） */
 const isZip = (name: string, type: string) => /\.zip$/i.test(name) || /zip/.test(type);
+
+/** 書き出した名前・メモ・タグとブックマークのファイルか（JSON の先頭に gtexp-userdata の印がある） */
+async function isUserData(f: { blob: Blob; name: string }): Promise<boolean> {
+  if (/\.gz$/i.test(f.name)) return false;
+  const head = await f.blob.slice(0, 200).text().catch(() => '');
+  return /^\s*\{\s*"format"\s*:\s*"gtexp-userdata"/.test(head);
+}
 
 const TAKEOUT_KIND_LABELS: Record<TakeoutImportStats['replaced'][number], string> = {
   saved: '保存した場所',
@@ -66,8 +50,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   const [progress, setProgress] = useState<{ stage: UploadStage; ratio: number } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [takeoutResult, setTakeoutResult] = useState<ZipImportResult | null>(null);
-  const [assigning, setAssigning] = useState(false);
-  const [assignResult, setAssignResult] = useState('');
+  const [userDataResult, setUserDataResult] = useState('');
   const [error, setError] = useState(query.get('share') === 'failed' ? '共有されたファイルを受信できませんでした。下のボタンからファイルを選んでください。' : '');
 
   const reload = () => {
@@ -84,10 +67,20 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
     setError('');
     setResult(null);
     setTakeoutResult(null);
+    setUserDataResult('');
     const onProgress = (stage: UploadStage, ratio: number) => setProgress({ stage, ratio });
     const zips = files.filter((f) => isZip(f.name, f.blob.type));
-    const timelines = files.filter((f) => !isZip(f.name, f.blob.type));
+    const others = files.filter((f) => !isZip(f.name, f.blob.type));
+    // 書き出した名前・メモ・タグとブックマーク（.json）は中身の印で見分け、タイムラインとは別に読み込む
+    const userData: typeof files = [];
+    const timelines: typeof files = [];
+    for (const f of others) ((await isUserData(f)) ? userData : timelines).push(f);
     try {
+      for (const f of userData) {
+        const r = await api.importUserData(f.blob);
+        setUserDataResult(`名前・メモ・タグ ${r.notes.toLocaleString()} か所と、ブックマーク ${r.bookmarks.toLocaleString()} 件を読み込みました。`);
+        reloadBookmarks().catch(() => {});
+      }
       for (const f of timelines) {
         setResult(await uploadExport(f.blob, f.name, onProgress));
         clearCalendarCache();
@@ -122,22 +115,6 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
     reload();
   };
 
-  /** 取り込み直さずに、まだ調べていない地点の住所を調べる */
-  const assignNow = async () => {
-    setAssigning(true);
-    setAssignResult('');
-    setError('');
-    try {
-      const r = await api.assignAreas();
-      setAssignResult(r.checked ? assignSummary(r) : '調べる地点はありませんでした');
-      reload();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setAssigning(false);
-    }
-  };
-
   const onFile = (e: Event) => {
     const input = e.currentTarget as HTMLInputElement;
     const files = [...(input.files ?? [])].map((file) => ({ blob: file as Blob, name: file.name }));
@@ -150,32 +127,9 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
       <a class="back-link" href="#/user">‹ ユーザー情報</a>
       <h2>データの取り込み</h2>
 
-      {summary && (
-        <section class="card">
-          <h3>いま入っているデータ</h3>
-          {summary.visits === 0 ? (
-            <p>まだデータがありません。</p>
-          ) : (
-            <ul class="stats">
-              <li>期間：{summary.firstDate} 〜 {summary.lastDate}</li>
-              <li>滞在 {summary.visits.toLocaleString()} 件（場所 {summary.places.toLocaleString()} か所）</li>
-              <li>移動 {summary.activities.toLocaleString()} 件・経路の点 {summary.points.toLocaleString()} 個</li>
-              <li>旅行 {summary.trips.toLocaleString()} 件</li>
-            </ul>
-          )}
-          {summary.visits > 0 && (
-            <DeleteData
-              kind="timeline"
-              note="タイムラインのデータ（滞在・移動・経路・旅行）と取り込みの履歴、場所に付いた住所・地点名を削除します。自分で付けた名前・メモ・タグとブックマーク、OpenStreetMap から取得した住所は残ります。元に戻すには、もう一度ファイルを送ってください。"
-              onDeleted={afterDelete}
-            />
-          )}
-        </section>
-      )}
-
       <section class="card">
         <h3>ファイルを送る</h3>
-        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout・Foursquare Swarm の書き出し（.zip）を送れます。まとめて選んでもかまいません。</p>
+        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout・Foursquare Swarm の書き出し（.zip）、この画面で書き出した名前・メモ・タグとブックマーク（.json）を送れます。まとめて選んでもかまいません。</p>
         <label class={`file-button${progress ? ' disabled' : ''}`}>
           ファイルを選ぶ
           <input
@@ -231,6 +185,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             )}
           </p>
         )}
+        {userDataResult && <p class="success">{userDataResult}</p>}
         {error && <p class="error">{error}</p>}
         <details class="help">
           <summary>タイムラインのエクスポートのしかた（Android）</summary>
@@ -285,28 +240,35 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
 
       {summary && (
         <section class="card">
-          <h3>住所のデータ（位置参照情報）</h3>
-          {summary.areas.areas === 0 ? (
-            <p>まだ入っていません。入ると、名前のない場所に「〇〇市〇〇町一丁目」のような住所が付きます。</p>
+          <h3>タイムライン</h3>
+          {summary.visits === 0 ? (
+            <p>まだデータがありません。</p>
           ) : (
             <ul class="stats">
-              <li>{summary.areas.prefectures} 都道府県・代表点 {summary.areas.areas.toLocaleString()} か所</li>
-              <li>大字・町丁目まで分かった場所 {summary.areas.places.toLocaleString()} / {summary.places.toLocaleString()} か所（付いていないのは、データのない都道府県や海外などの場所です）</li>
-              <li>街区（〇番）まで分かった場所 {summary.areas.gaikuPlaces.toLocaleString()} か所（街区の代表点が 150m 以内にある場所）</li>
-              {summary.areas.pending > 0 && (
-                <li class="note-strong">
-                  まだ住所を調べていない地点が {summary.areas.pending.toLocaleString()} か所あります。次にタイムラインを取り込んだときに調べます。
-                  <button type="button" class="inline-btn" disabled={assigning || !!progress} onClick={assignNow}>
-                    {assigning ? '調べています…（全国分で 1 分ほど）' : '今すぐ調べる'}
-                  </button>
-                </li>
-              )}
+              <li>期間：{summary.firstDate} 〜 {summary.lastDate}</li>
+              <li>滞在 {summary.visits.toLocaleString()} 件（場所 {summary.places.toLocaleString()} か所）</li>
+              <li>移動 {summary.activities.toLocaleString()} 件・経路の点 {summary.points.toLocaleString()} 個</li>
+              <li>旅行 {summary.trips.toLocaleString()} 件</li>
             </ul>
           )}
-          <AdminNote text="位置参照情報は、サーバーの管理者が入れます" />
-          {assignResult && <p class="success">{assignResult}</p>}
-          <AreaCredit />
+          {summary.visits > 0 && (
+            <DeleteData
+              kind="timeline"
+              note="タイムラインのデータ（滞在・移動・経路・旅行）と取り込みの履歴、場所に付いた住所・地点名を削除します。自分で付けた名前・メモ・タグとブックマーク、OpenStreetMap から取得した住所は残ります。元に戻すには、もう一度ファイルを送ってください。"
+              onDeleted={afterDelete}
+            />
+          )}
         </section>
+      )}
+
+      {summary && (
+        <UserDataCard
+          status={summary.userData}
+          onChanged={() => {
+            reloadBookmarks().catch(() => {});
+            reload();
+          }}
+        />
       )}
 
       {summary && (
@@ -355,51 +317,6 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           {summary.swarm.loadedAt && (
             <DeleteData kind="swarm" note="Foursquare Swarm から取り込んだチェックインと、そこから付けた店の名前を削除します。元に戻すには、もう一度ファイルを送ってください。" onDeleted={afterDelete} />
           )}
-        </section>
-      )}
-
-      {summary && (
-        <UserDataCard
-          status={summary.userData}
-          onChanged={() => {
-            reloadBookmarks().catch(() => {});
-            reload();
-          }}
-        />
-      )}
-
-      {summary && (
-        <section class="card">
-          <h3>施設名・住所（OpenStreetMap）</h3>
-          <ul class="stats">
-            <li>
-              施設名：
-              {summary.osm.pois > 0
-                ? `施設 ${summary.osm.pois.toLocaleString()} 件（${summary.osm.loadedAt ? new Date(summary.osm.loadedAt).toLocaleDateString() : ''} に入れたデータ）・施設名の付いた地点 ${summary.osm.poiPlaces.toLocaleString()} か所`
-                : 'まだデータを入れていません'}
-            </li>
-            <li>住所：調べた地点 {summary.osm.checked.toLocaleString()} / {summary.places.toLocaleString()} か所（住所が取れた地点 {summary.osm.addr.toLocaleString()} か所）</li>
-            {summary.osm.lastRun && (
-              <li>
-                住所の最後の取得 {new Date(summary.osm.lastRun.at).toLocaleString()}：{summary.osm.lastRun.done} か所
-                {summary.osm.lastRun.remaining >= 0 && `・残り ${summary.osm.lastRun.remaining.toLocaleString()} か所`}
-                {summary.osm.lastRun.stopped && <span class="error">（{summary.osm.lastRun.stopped}）</span>}
-              </li>
-            )}
-          </ul>
-          <details class="help">
-            <summary>しくみ</summary>
-            <p class="muted">
-              施設名は、サーバーに入れてある日本の OpenStreetMap のデータから、地点から 60m 以内の名前の付いた店や施設を付けます
-              （タイムラインの取り込みのたびと「今すぐ調べる」で）。
-            </p>
-            <p class="muted">
-              住所は、サーバーが毎時、まだ調べていない地点をよく行く順に少しずつ OpenStreetMap の住所検索に問い合わせて貯めます
-              （利用規約の範囲で、15〜25 秒に1回）。海外の地点にも付きます。
-            </p>
-          </details>
-          <AdminNote text="OpenStreetMap の施設のデータを入れることと、住所を毎時取る設定は、サーバーの管理者が行います" />
-          <OsmCredit />
         </section>
       )}
 

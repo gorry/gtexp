@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks';
-import type { HealthResponse } from '../../shared/types';
+import type { HealthResponse, SummaryResponse } from '../../shared/types';
 import { PROFILE } from '../../shared/profile.gen';
 import { BUILD } from '../../shared/build.gen';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
+import { ServerDataCards } from './ServerData';
 // 著作権表示と第三者のソフトウェア・データの表示（リポジトリの NOTICE をビルドのときに埋め込む）
 import notice from '../../../NOTICE?raw';
 
@@ -25,8 +26,15 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [error, setError] = useState('');
 
+  // 住所・施設名のデータ（全員で使うデータ）の状態は、ログインしているときだけ出す（調べた地点の数は利用者ごと）
+  const [summary, setSummary] = useState<SummaryResponse | null>(null);
+  const loadSummary = () => {
+    api.summary().then(setSummary).catch(() => {});
+  };
+
   useEffect(() => {
     api.health().then(setHealth, (e) => setError((e as Error).message));
+    if (loggedIn) loadSummary();
   }, []);
 
   // 画面とサーバーが別のコミットから作られている（画面が古いまま残っている、またはサーバーがまだ再起動していない）
@@ -90,6 +98,13 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
             読み込み直す
           </button>
         </p>
+      )}
+
+      {summary && (
+        <>
+          <h2>住所・施設名のデータ</h2>
+          <ServerDataCards summary={summary} onChanged={loadSummary} />
+        </>
       )}
 
       <h2>ライセンスと表示</h2>
