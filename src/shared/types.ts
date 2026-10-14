@@ -144,8 +144,14 @@ export interface CalendarResponse {
   days: Record<string, CalendarDay>;
 }
 
+/** 取り込んだもの：タイムライン・Google Takeout・Foursquare Swarm・名前・メモ・タグとブックマーク */
+export type ImportKind = 'timeline' | 'takeout' | 'swarm' | 'userdata';
+
 export interface ImportRecord {
   id: number;
+  kind: ImportKind;
+  /** タイムライン以外の内容。takeout は TakeoutImportStats、swarm は {checkins, venues}、userdata は {notes, bookmarks} */
+  detail: any;
   importedAt: string;
   fileName: string;
   rangeStart: string | null;

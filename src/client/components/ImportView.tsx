@@ -29,6 +29,34 @@ async function isUserData(f: { blob: Blob; name: string }): Promise<boolean> {
   return /^\s*\{\s*"format"\s*:\s*"gtexp-userdata"/.test(head);
 }
 
+/** 取り込みの履歴を一度に出す件数 */
+const HISTORY_PAGE = 20;
+
+const IMPORT_KIND_LABELS: Record<ImportRecord['kind'], string> = {
+  timeline: 'タイムライン',
+  takeout: 'Google Takeout',
+  swarm: 'Foursquare Swarm',
+  userdata: '名前・メモ・タグとブックマーク',
+};
+
+/** 取り込みの履歴の「内容」 */
+function importDetail(h: ImportRecord): string {
+  const n = (v: number) => (v ?? 0).toLocaleString();
+  const d = h.detail ?? {};
+  if (h.kind === 'timeline') return `${h.rangeStart?.slice(0, 10) ?? ''} 〜 ${h.rangeEnd?.slice(0, 10) ?? ''}・滞在 ${n(h.visits)} 件・移動 ${n(h.activities)} 件`;
+  if (h.kind === 'swarm') return `チェックイン ${n(d.checkins)} 件（店 ${n(d.venues)} か所）`;
+  if (h.kind === 'userdata') return `名前・メモ・タグ ${n(d.notes)} か所・ブックマーク ${n(d.bookmarks)} 件`;
+  // Takeout は、zip に入っていて置き換えた種類だけ
+  const count: Record<string, string> = {
+    saved: `${n(d.saved)} 件`,
+    labeled: `${n(d.labeled)} 件`,
+    lists: `${n(d.listEntries)} 件`,
+    reviews: `${n(d.reviews)} 件`,
+    mymaps: `${n(d.mymaps)} 個（地点 ${n(d.mymapPoints)} か所）`,
+  };
+  return ((d.replaced ?? []) as string[]).map((k) => `${TAKEOUT_KIND_LABELS[k as keyof typeof TAKEOUT_KIND_LABELS]} ${count[k]}`).join('・');
+}
+
 const TAKEOUT_KIND_LABELS: Record<TakeoutImportStats['replaced'][number], string> = {
   saved: '保存した場所',
   labeled: 'ラベルを付けた場所',
@@ -47,6 +75,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
   usePageTitle('データの取り込み');
   const [summary, setSummary] = useState<SummaryResponse | null>(null);
   const [history, setHistory] = useState<ImportRecord[]>([]);
+  // 取り込みの履歴は新しい HISTORY_PAGE 件ずつ出す（「もっと見る」で続き）
+  const [historyShown, setHistoryShown] = useState(HISTORY_PAGE);
   const [progress, setProgress] = useState<{ stage: UploadStage; ratio: number } | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [takeoutResult, setTakeoutResult] = useState<ZipImportResult | null>(null);
@@ -77,7 +107,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
     for (const f of others) ((await isUserData(f)) ? userData : timelines).push(f);
     try {
       for (const f of userData) {
-        const r = await api.importUserData(f.blob);
+        const r = await api.importUserData(f.blob, f.name);
         setUserDataResult(`名前・メモ・タグ ${r.notes.toLocaleString()} か所と、ブックマーク ${r.bookmarks.toLocaleString()} 件を読み込みました。`);
         reloadBookmarks().catch(() => {});
       }
@@ -325,19 +355,26 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <h3>取り込みの履歴</h3>
           <table class="history">
             <thead>
-              <tr><th>日時</th><th>期間</th><th>滞在</th><th>移動</th></tr>
+              <tr><th>日時</th><th>取り込んだもの</th><th>内容</th></tr>
             </thead>
             <tbody>
-              {history.map((h) => (
+              {history.slice(0, historyShown).map((h) => (
                 <tr>
                   <td>{new Date(h.importedAt).toLocaleString()}</td>
-                  <td>{h.rangeStart?.slice(0, 10)} 〜 {h.rangeEnd?.slice(0, 10)}</td>
-                  <td>{h.visits.toLocaleString()}</td>
-                  <td>{h.activities.toLocaleString()}</td>
+                  <td>
+                    {IMPORT_KIND_LABELS[h.kind]}
+                    {h.fileName && <div class="muted history-file">{h.fileName}</div>}
+                  </td>
+                  <td>{importDetail(h)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          {history.length > historyShown && (
+            <button type="button" class="more-btn" onClick={() => setHistoryShown(historyShown + HISTORY_PAGE)}>
+              もっと見る（残り {(history.length - historyShown).toLocaleString()} 件）
+            </button>
+          )}
         </section>
       )}
     </div>

@@ -85,5 +85,5 @@ export function importUserData(db: DatabaseSync, data: any): { notes: number; bo
 }
 
 export function deleteUserData(db: DatabaseSync): void {
-  transaction(db, () => db.exec('DELETE FROM place_notes; DELETE FROM bookmarks;'));
+  transaction(db, () => db.exec("DELETE FROM place_notes; DELETE FROM bookmarks; DELETE FROM imports WHERE kind = 'userdata';"));
 }

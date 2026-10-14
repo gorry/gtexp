@@ -65,8 +65,13 @@ export const api = {
   /** 送ったデータを消す（タイムライン・Google Takeout・Foursquare Swarm） */
   deleteData: (kind: 'timeline' | 'takeout' | 'swarm' | 'userdata') => request<{ ok: boolean }>('DELETE', `/api/data/${kind}`),
   /** 自分で付けた名前・メモ・タグとブックマークを読み込む（書き出したファイルの中身をそのまま送る） */
-  importUserData: async (file: Blob): Promise<{ notes: number; bookmarks: number }> => {
-    const res = await fetch('/api/userdata', { method: 'POST', body: file, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin' });
+  importUserData: async (file: Blob, name = ''): Promise<{ notes: number; bookmarks: number }> => {
+    const res = await fetch('/api/userdata', {
+      method: 'POST',
+      body: file,
+      headers: { 'Content-Type': 'application/json', 'X-File-Name': encodeURIComponent(name) },
+      credentials: 'same-origin',
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401) onUnauthorized();

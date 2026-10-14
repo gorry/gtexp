@@ -22,7 +22,7 @@ export function deleteTimeline(db: DatabaseSync, dir: string): void {
   transaction(db, () => {
     db.exec(`
       DELETE FROM visits; DELETE FROM activities; DELETE FROM path_points; DELETE FROM trips; DELETE FROM places;
-      DELETE FROM imports;
+      DELETE FROM imports WHERE kind = 'timeline';
     `);
     db.prepare('DELETE FROM place_labels WHERE source <> ?').run(OSM_ADDR_SOURCE);
     db.prepare('DELETE FROM label_checks WHERE source <> ?').run(OSM_ADDR_SOURCE);
@@ -44,7 +44,7 @@ function deleteSources(db: DatabaseSync, sources: readonly string[]): void {
  */
 export function deleteTakeout(db: DatabaseSync, dir: string, stops: LabelStopOptions): void {
   transaction(db, () => {
-    db.exec('DELETE FROM takeout_places; DELETE FROM takeout_lists; DELETE FROM takeout_mymaps;');
+    db.exec("DELETE FROM takeout_places; DELETE FROM takeout_lists; DELETE FROM takeout_mymaps; DELETE FROM imports WHERE kind = 'takeout';");
     deleteSources(db, TAKEOUT_SOURCES);
   });
   rebuildLabelStops(db, stops);
@@ -54,7 +54,7 @@ export function deleteTakeout(db: DatabaseSync, dir: string, stops: LabelStopOpt
 /** Foursquare Swarm を消す：チェックインと、そこから付けた店の名前、取り出して置いたファイル */
 export function deleteSwarm(db: DatabaseSync, dir: string): void {
   transaction(db, () => {
-    db.exec('DELETE FROM swarm_checkins');
+    db.exec("DELETE FROM swarm_checkins; DELETE FROM imports WHERE kind = 'swarm';");
     deleteSources(db, [SWARM_SOURCE]);
   });
   rmSync(join(dir, 'swarm'), { recursive: true, force: true });

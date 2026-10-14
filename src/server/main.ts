@@ -4,13 +4,13 @@ import { open } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip, gunzipSync } from 'node:zlib';
-import { extname, join, resolve, sep } from 'node:path';
+import { basename, extname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import { loadConfig, describeConfig, type Config } from './config';
 import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
 import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } from './users';
-import { addBookmark, deleteBookmark, listBookmarks, renameBookmark, reorderBookmarks, bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
+import { recordImport, addBookmark, deleteBookmark, listBookmarks, renameBookmark, reorderBookmarks, bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
 import { importTakeoutZips } from './takeout';
@@ -317,6 +317,11 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
       throw new HttpError(400, (e as Error).message);
     }
     const body: ZipImportResult = { ok: true, ...result, addresses: assignForImport(db, assignOptions(config)) };
+    // 取り込みの履歴に残す（ファイル名は、受け取ったときに付けた番号を外す）
+    const names = (paths: string[]) => paths.map((p) => basename(p).replace(/^\d+_/, '')).join('、');
+    const { swarm, others } = splitSwarmZips([tmp]);
+    if (result.takeout) recordImport(db, 'takeout', names(others), result.takeout);
+    if (result.swarm) recordImport(db, 'swarm', names(swarm), result.swarm);
     return body;
   } finally {
     importing.delete(user);
@@ -468,11 +473,14 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
       if (e instanceof HttpError && e.status === 400) throw new HttpError(400, 'ファイルを読み込めませんでした。「書き出す」で保存したファイルを選んでください。');
       throw e;
     }
+    let counts: { notes: number; bookmarks: number };
     try {
-      sendJson(res, 200, importUserData(db, data));
+      counts = importUserData(db, data);
     } catch (e) {
       throw new HttpError(400, (e as Error).message);
     }
+    recordImport(db, 'userdata', decodeURIComponent(String(req.headers['x-file-name'] ?? '')), counts);
+    sendJson(res, 200, counts);
     return;
   }
   if (path === '/api/config' && method === 'GET') {

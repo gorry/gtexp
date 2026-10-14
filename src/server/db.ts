@@ -24,6 +24,7 @@ import type {
   PlacesResponse,
   PlaceVisit,
   RecordGap,
+  ImportKind,
   MoveEvent,
   SearchGroup,
   SearchGroupRow,
@@ -137,8 +138,12 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   position INTEGER NOT NULL DEFAULT 0
 );
 
+-- 取り込みの履歴。kind は timeline（タイムライン）・takeout・swarm・userdata（名前・メモ・タグとブックマーク）。
+-- タイムライン以外は件数の列を 0 にし、内容を detail（JSON）に持つ
 CREATE TABLE IF NOT EXISTS imports (
   id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'timeline',
+  detail TEXT,
   imported_at TEXT NOT NULL,
   file_name TEXT NOT NULL,
   stored_path TEXT NOT NULL,
@@ -312,6 +317,8 @@ export function openUserDb(dataDir: string, user: string): DatabaseSync {
   // 前の版で作った DB には、あとから足した列がない
   const visitCols = (db.prepare('PRAGMA table_info(visits)').all() as any[]).map((r) => r.name as string);
   if (visitCols.length && !visitCols.includes('estimated')) db.exec('ALTER TABLE visits ADD COLUMN estimated INTEGER NOT NULL DEFAULT 0');
+  const importCols = (db.prepare('PRAGMA table_info(imports)').all() as any[]).map((r) => r.name as string);
+  if (importCols.length && !importCols.includes('kind')) db.exec("ALTER TABLE imports ADD COLUMN kind TEXT NOT NULL DEFAULT 'timeline'; ALTER TABLE imports ADD COLUMN detail TEXT;");
   const bookmarkCols = (db.prepare('PRAGMA table_info(bookmarks)').all() as any[]).map((r) => r.name as string);
   if (bookmarkCols.length && !bookmarkCols.includes('position')) {
     // 並べ替えを足す前は新しい順だった
@@ -481,6 +488,8 @@ export function getCalendar(db: DatabaseSync, year: number): CalendarResponse {
 function toImport(r: Row): ImportRecord {
   return {
     id: r.id,
+    kind: r.kind ?? 'timeline',
+    detail: r.detail ? JSON.parse(r.detail) : null,
     importedAt: r.imported_at,
     fileName: r.file_name,
     rangeStart: r.range_start,
@@ -496,10 +505,17 @@ export function listImports(db: DatabaseSync): ImportRecord[] {
   return db.prepare('SELECT * FROM imports ORDER BY id DESC').all().map(toImport);
 }
 
+/** タイムライン以外の取り込みを履歴に残す（内容は detail に） */
+export function recordImport(db: DatabaseSync, kind: Exclude<ImportKind, 'timeline'>, fileName: string, detail: unknown): void {
+  db.prepare(
+    `INSERT INTO imports (kind, detail, imported_at, file_name, stored_path, visits, activities, points, trips) VALUES (?, ?, ?, ?, '', 0, 0, 0, 0)`,
+  ).run(kind, JSON.stringify(detail), new Date().toISOString(), fileName);
+}
+
 export function getSummary(db: DatabaseSync): SummaryResponse {
   const count = (table: string) => (db.prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as Row).n as number;
   const range = db.prepare('SELECT MIN(local_date) AS first, MAX(local_date) AS last FROM visits').get() as Row;
-  const last = db.prepare('SELECT * FROM imports ORDER BY id DESC LIMIT 1').get() as Row | undefined;
+  const last = db.prepare("SELECT * FROM imports WHERE kind = 'timeline' ORDER BY id DESC LIMIT 1").get() as Row | undefined;
   return {
     visits: count('visits'),
     activities: count('activities'),

@@ -260,7 +260,7 @@ URL の `#` 以降で画面を切り替える。
 - タイムラインのエクスポートのしかた（Android）と、Google Takeout・Foursquare Swarm の書き出しかたを、折りたたみで出す
 - Android の「共有」から受け取ったファイル（.json / .gz / .zip）は、Service Worker が Cache Storage に置き、データの取り込みの画面（`#/import?shared=1`）が取り出して送る
 - 位置参照情報・Google Takeout・Foursquare Swarm・OpenStreetMap の状態（件数、名前や住所が付いた地点の数）。まだ調べていない地点があれば「今すぐ調べる」
-- 取り込みの履歴
+- 取り込みの履歴（新しい 20 件ずつ。「もっと見る」で続き）：日時、取り込んだもの（タイムライン・Google Takeout・Foursquare Swarm・名前・メモ・タグとブックマークと、ファイル名）、内容（タイムラインは期間と滞在・移動の件数、Takeout は zip に入っていて置き換えた種類ごとの件数、Swarm はチェックインと店の数、名前・メモ・タグとブックマークは読み込んだ数）
 
 ### ブックマーク
 - どの画面でも、見出しの右端の ☆ を押すと「ブックマークします」の欄を出す。名前を決めて「OK」で、その画面の URL（`#` 以降。絞り込みの条件を含む）をブックマークに足す。足した画面では ★ になる
@@ -301,7 +301,7 @@ URL の `#` 以降で画面を切り替える。
 | `GET /api/config` | `{mapsApiKey, mapId, tzOffsetMinutes}` |
 | `POST /api/import` | 本文がファイルそのもの（gzip 可、先頭2バイトで判定）。ヘッダー `X-File-Name` に元のファイル名（URL エンコード）。利用者ごとに同時に1件まで |
 | `POST /api/takeout` | Google Takeout か Foursquare Swarm の zip（multipart/form-data の `file`、複数可、混ざっていてもよい、合わせて 200MB まで）を入れ、地点への割り当てまで行う → `takeout`（置き換えた種類・件数・保存リストの名前）・`swarm`（チェックインと店の数）・割り当ての結果。送られなかったほうは null。Takeout は zip に入っていた種類だけ、Swarm は全部置き換わる |
-| `GET /api/imports` | 取り込みの履歴 |
+| `GET /api/imports` | 取り込みの履歴（新しい順）。`kind`（timeline・takeout・swarm・userdata）と、タイムライン以外の内容 `detail` |
 | `GET /api/summary` | 件数・期間・最後の取り込み |
 | `GET /api/day?date=YYYY-MM-DD` | その日に少しでもかかる滞在・移動・旅行と、その日の経路の点 |
 | `GET /api/calendar?year=YYYY` | 日ごとの滞在件数と移動距離 |
@@ -364,7 +364,7 @@ URL の `#` 以降で画面を切り替える。
 | `label_checks` | 地点の住所を取得方法ごとに調べた日時 | まだ調べていない地点などを調べて記録 |
 | `place_notes` | 自分で付けた名前・メモ・タグ | **触らない** |
 | `bookmarks` | ブックマーク（画面の URL・名前・並び順 position） | **触らない** |
-| `imports` | 取り込みの履歴 | 追加 |
+| `imports` | 取り込みの履歴（kind・detail。タイムライン以外は件数の列が 0）。データを削除すると、その種類の行も消える | 追加 |
 | `kv` | userLocationProfile など | 上書き |
 | `users` | 利用者の一覧（shared） | 触らない（コマンドで管理） |
 | `shared_kv` | 参照データを入れた日時と件数（shared） | 触らない |

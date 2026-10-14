@@ -1691,3 +1691,9 @@ a.trip-banner:hover {
   font-weight: 600;
   cursor: pointer;
 }
+
+/* 取り込みの履歴：取り込んだファイルの名前 */
+.history-file {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
