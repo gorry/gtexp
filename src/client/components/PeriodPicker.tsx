@@ -21,6 +21,9 @@ export function clearYearsCache(): void {
   yearsCache = null;
 }
 
+/** 日付で期間を指定しているときの、ドロップダウンの表示だけの項目 */
+const CUSTOM = 'custom';
+
 interface Props {
   from: string;
   to: string;
@@ -36,16 +39,23 @@ export function PeriodPicker({ from, to, onChange }: Props) {
   const wholeYear = from && from.slice(0, 4) === to.slice(0, 4) && from.endsWith('-01-01') && to.endsWith('-12-31') ? from.slice(0, 4) : '';
   return (
     <div class="filter-row">
+      {/* 日付で指定しているときは「期間」（選べない表示だけの項目）を出す。「全期間」はいつでも選べて、期間を解除する */}
       <select
-        value={wholeYear}
+        value={wholeYear || (from || to ? CUSTOM : '')}
         onChange={(e) => {
           const y = e.currentTarget.value;
+          if (y === CUSTOM) return;
           if (y) onChange(`${y}-01-01`, `${y}-12-31`);
           else onChange('', '');
         }}
         aria-label="年"
       >
-        <option value="">{from || to ? '期間を指定中' : '全期間'}</option>
+        {(from || to) && !wholeYear && (
+          <option value={CUSTOM} disabled>
+            期間
+          </option>
+        )}
+        <option value="">全期間</option>
         {years.map((y) => (
           <option value={y}>{y}年</option>
         ))}
