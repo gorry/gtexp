@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { api } from '../api';
+import { PROFILE } from '../../shared/profile.gen';
+import { UserIcon } from '../userIcon';
 
-/** 見出しの右端のメニュー：ログインしている利用者の名前・ログアウト、ブックマーク、このアプリについて・再読み込み */
+/** 見出しの右端のメニュー：ログインしている利用者（アイコンと名前。ユーザー情報へ）、ブックマーク、アプリについて・再読み込み */
 export function HeaderMenu({ user }: { user: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -33,24 +34,18 @@ export function HeaderMenu({ user }: { user: string }) {
       </button>
       {open && (
         <div class="header-menu-list" role="menu">
-          <div class="header-menu-user muted" title="ログインしている利用者">
-            {user}
-          </div>
-          <button
-            type="button"
-            role="menuitem"
-            // 画面が覚えている前の利用者の状態（地図の位置・作業中のタグ付けなど）を残さないよう、読み込み直す
-            onClick={() => api.logout().finally(() => location.replace('/'))}
-          >
-            ログアウト
-          </button>
+          {/* 利用者名（とアイコン）を押すと、ユーザー情報（アイコン・データの取り込み・パスワード・ログアウト） */}
+          <a role="menuitem" class="header-menu-user" href="#/user">
+            <UserIcon size={24} />
+            <span>{user}</span>
+          </a>
           <div class="header-menu-sep" role="separator" />
           <a role="menuitem" href="#/bookmarks">
             ブックマーク
           </a>
           <div class="header-menu-sep" role="separator" />
           <a role="menuitem" href="#/about">
-            このアプリについて
+            {PROFILE.shortTitle}について
           </a>
           {/* スマホの PWA では、地図のある画面で「下に引っ張って読み込み直す」がしにくいので、メニューから読み込み直せるようにする */}
           <button type="button" role="menuitem" onClick={() => location.reload()}>

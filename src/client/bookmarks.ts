@@ -105,7 +105,8 @@ const PAGE_LABELS: Record<string, string> = {
   trips: '旅行の一覧',
   trip: '旅行',
   lists: '保存リスト',
-  import: '取り込み',
+  import: 'ユーザー情報',
+  user: 'ユーザー情報',
   bookmarks: 'ブックマーク',
 };
 

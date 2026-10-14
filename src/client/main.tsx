@@ -1,6 +1,5 @@
 import { render, type ComponentChildren } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
-import { PROFILE } from '../shared/profile.gen';
 import type { ClientConfig } from '../shared/types';
 import { api, setUnauthorizedHandler } from './api';
 import { todayIn } from './format';
@@ -9,7 +8,6 @@ import { BookmarkButton } from './components/BookmarkButton';
 import { BookmarksView } from './components/BookmarksView';
 import { DayView } from './components/DayView';
 import { HeaderMenu } from './components/HeaderMenu';
-import { ImportView } from './components/ImportView';
 import { ListsView } from './components/ListsView';
 import { Login } from './components/Login';
 import { PlaceView } from './components/PlaceView';
@@ -17,7 +15,9 @@ import { PlacesView } from './components/PlacesView';
 import { SearchView } from './components/SearchView';
 import { TripView } from './components/TripView';
 import { TripsView } from './components/TripsView';
+import { UserView } from './components/UserView';
 import { openTab, tabHash } from './tabs';
+import { setIconVersion } from './userIcon';
 import './styles.css';
 
 // 画面の切り替えは URL の # 以降で行う（#/day/2024-05-25, #/places?q=..., #/place/{placeId}, #/search?..., #/trips, #/trip/{開始時刻ms}, #/lists?list=..., #/import, #/bookmarks, #/about）
@@ -53,6 +53,8 @@ function App() {
   useEffect(() => {
     if (!loggedIn) return;
     api.config().then(setConfig).catch(() => {});
+    // アイコンの版（ログインした直後は分からないので、ここで確かめる）
+    api.me().then((r) => setIconVersion(r.icon ?? null)).catch(() => {});
     // 最初に開く日は、データがある最後の日
     api.summary().then((s) => setDefaultDate(s.lastDate ?? '')).catch(() => {});
   }, [loggedIn]);
@@ -64,15 +66,12 @@ function App() {
   if (!config) return null;
 
   const date = /^\d{4}-\d{2}-\d{2}$/.test(arg) ? arg : defaultDate || todayIn(config.tzOffsetMinutes);
-  const current = ['import', 'places', 'place', 'search', 'trips', 'trip', 'lists', 'bookmarks'].includes(page) ? page : 'day';
+  // 前の取り込みの画面（#/import）は、ユーザー情報の画面に入れた
+  const current = page === 'import' ? 'user' : ['user', 'places', 'place', 'search', 'trips', 'trip', 'lists', 'bookmarks'].includes(page) ? page : 'day';
 
   return (
     <div class="app">
       <header class="header">
-        <a class="brand" href="#/day" title={`${PROFILE.title} ${PROFILE.version}`}>
-          <span class="brand-full">{PROFILE.title}</span>
-          <span class="brand-short">{PROFILE.shortTitle}</span>
-        </a>
         <nav>
           <a href={`#/day/${date}`} class={current === 'day' ? 'active' : ''}>日付</a>
           {/* 場所・集計・旅行・保存リストは、前に開いていた条件のまま戻る（tabs.ts） */}
@@ -83,14 +82,13 @@ function App() {
             <span class="nav-full">保存リスト</span>
             <span class="nav-short">リスト</span>
           </TabLink>
-          <a href="#/import" class={current === 'import' ? 'active' : ''}>取り込み</a>
         </nav>
         <BookmarkButton />
         <HeaderMenu user={user ?? ''} />
       </header>
       <main class="content">
-        {current === 'import' ? (
-          <ImportView query={query} onImported={() => api.summary().then((s) => setDefaultDate(s.lastDate ?? ''))} />
+        {current === 'user' ? (
+          <UserView user={user ?? ''} query={query} onImported={() => api.summary().then((s) => setDefaultDate(s.lastDate ?? ''))} />
         ) : current === 'places' ? (
           // タグのリンクなどで条件付きの URL に来たら、条件を読み直す
           <PlacesView key={query.toString()} config={config} query={query} />

@@ -160,12 +160,6 @@ textarea {
   flex-shrink: 0;
 }
 
-.brand {
-  font-weight: 700;
-  color: var(--fg);
-  text-decoration: none;
-}
-
 .header nav {
   display: flex;
   gap: 4px;
@@ -319,11 +313,6 @@ textarea {
   flex-direction: column;
 }
 
-.header-menu-user {
-  padding: 6px 12px;
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
 
 .header-menu-sep {
   border-top: 1px solid var(--border);
@@ -347,6 +336,47 @@ textarea {
 .header-menu-list a:hover,
 .header-menu-list button:hover {
   background: var(--bg-soft);
+}
+
+/* 利用者のアイコンと名前（押すとユーザー情報） */
+.header-menu-list a.header-menu-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.user-icon {
+  flex-shrink: 0;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-soft);
+}
+
+/* ---- ユーザー情報 ---- */
+.user-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.user-name {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+}
+
+.import-section {
+  margin-bottom: 16px;
 }
 
 .content {
@@ -803,24 +833,21 @@ textarea {
   font-size: 14px;
 }
 
-/* 画面が狭いときはアプリ名を略名にする */
-.brand-short,
+/* 画面が狭いときはタブの名前を短くする */
 .nav-short {
   display: none;
 }
 
 @media (max-width: 600px) {
-  .brand-full,
   .nav-full {
     display: none;
   }
 
-  .brand-short,
   .nav-short {
     display: inline;
   }
 
-  /* タブが 6 つあるので、狭い画面では詰める（それでも入らなければ横に送れる） */
+  /* タブが 5 つあるので、狭い画面では詰める（それでも入らなければ横に送れる） */
   .header nav {
     gap: 0;
     min-width: 0;

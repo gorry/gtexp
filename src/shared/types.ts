@@ -363,6 +363,8 @@ export interface MeResponse {
   loggedIn: boolean;
   /** ログインしている利用者の名前 */
   user?: string;
+  /** アイコンの版（置いた日時）。null は未設定（初期のアイコンを出す） */
+  icon?: string | null;
 }
 
 /** Takeout の保存リスト（保存リストのタブ） */

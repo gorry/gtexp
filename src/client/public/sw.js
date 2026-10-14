@@ -22,9 +22,9 @@ self.addEventListener('fetch', (event) => {
           SHARE_KEY,
           new Response(file, { headers: { 'X-File-Name': encodeURIComponent(file.name || 'shared.json') } }),
         );
-        return Response.redirect('/#/import?shared=1', 303);
+        return Response.redirect('/#/user?shared=1', 303);
       } catch {
-        return Response.redirect('/#/import?share=failed', 303);
+        return Response.redirect('/#/user?share=failed', 303);
       }
     })(),
   );

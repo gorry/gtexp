@@ -145,7 +145,7 @@ URL の `#` 以降で画面を切り替える。
 | `#/trips?from=…&to=…&sort=…` | 旅行の一覧 |
 | `#/trip/{開始時刻ms}` | 旅行の詳細（旅行は取り込みのたびに作り直されて id が変わるので、開始時刻で指す） |
 | `#/lists?list=…&f=…` | 保存リスト |
-| `#/import` | 取り込み |
+| `#/user` | ユーザー情報：アイコン、データの取り込み、パスワードの変更、ログアウト（見出しのメニューの利用者名から。前の `#/import` もここを開く） |
 | `#/bookmarks` | ブックマークの一覧（見出しの右端のメニューと、☆ の欄からリンク） |
 | `#/about` | このアプリについて（ログインしていなくても見られる。ログインの画面と、見出しの右端のメニューからリンク）。版・著作権・プロジェクトの URL、画面とサーバーそれぞれのビルドのコミットと日時（違っていれば読み込み直しを勧める）、NOTICE の全文（ビルドのときに埋め込む）と LICENSE へのリンク |
 | （未ログイン時） | ログイン |
@@ -257,7 +257,7 @@ URL の `#` 以降で画面を切り替える。
 - いま入っているデータの概要（期間、滞在・場所・移動・経路の点・旅行の件数）
 - 「ファイルを選ぶ」は複数選べる。.zip は Google Takeout か Swarm としてまとめて 1 回で送り（`POST /api/takeout`。どちらかはサーバーが中身で決める）、それ以外はタイムラインのエクスポートとして 1 つずつ送る（`POST /api/import`）。素の JSON はブラウザで gzip 圧縮してから送る（10 分の 1 ほどになる）。圧縮中 / 送信中（進捗）/ 取り込み中 を表示
 - タイムラインのエクスポートのしかた（Android）と、Google Takeout・Foursquare Swarm の書き出しかたを、折りたたみで出す
-- Android の「共有」から受け取ったファイル（.json / .gz / .zip）は、Service Worker が Cache Storage に置き、取り込み画面が取り出して送る
+- Android の「共有」から受け取ったファイル（.json / .gz / .zip）は、Service Worker が Cache Storage に置き、ユーザー情報の画面（`#/user?shared=1`）の取り込みが取り出して送る
 - 位置参照情報・Google Takeout・Foursquare Swarm・OpenStreetMap の状態（件数、名前や住所が付いた地点の数）。まだ調べていない地点があれば「今すぐ調べる」
 - 取り込みの履歴
 
@@ -288,7 +288,11 @@ URL の `#` 以降で画面を切り替える。
 |---|---|
 | `POST /api/login` | `{user, password}` → Cookie を発行し `{loggedIn, user}` を返す。利用者名は大文字・小文字を区別しない（小文字にそろえる） |
 | `POST /api/logout` | Cookie を消す |
-| `GET /api/me` | `{loggedIn, user}` |
+| `GET /api/me` | `{loggedIn, user, icon}`（icon はアイコンの版。未設定なら null） |
+| `GET /api/me/icon?v=…` | アイコンの画像（PNG・JPEG・WebP）。未設定なら 404 |
+| `PUT /api/me/icon` | アイコンを置き換える（本文は画像そのもの。2MB まで。PNG・JPEG・WebP 以外は断る）。`{icon}` |
+| `DELETE /api/me/icon` | アイコンを消す（初期のアイコンに戻す） |
+| `POST /api/me/password` | `{current, next}`。今のパスワードを確かめて（間違いはログインの失敗と同じに数える）、新しいパスワード（8 文字以上）にする。ほかの端末はログアウトされ、この端末には新しい Cookie を返す |
 | `GET /api/health` | ログイン不要。`{version, startedAt, builtAt, commit, dirty}`（動いているサーバーの版・起動した日時・起動したときの dist/server.mjs の日時・ビルドの元にしたコミットと、コミットしていない変更を含むか。check コマンドが今のビルドと比べ、「このアプリについて」が表示する） |
 | `GET /api/config` | `{mapsApiKey, mapId, tzOffsetMinutes}` |
 | `POST /api/import` | 本文がファイルそのもの（gzip 可、先頭2バイトで判定）。ヘッダー `X-File-Name` に元のファイル名（URL エンコード）。利用者ごとに同時に1件まで |
@@ -325,7 +329,12 @@ URL の `#` 以降で画面を切り替える。
 - 全員で使うのは、参照データ（位置参照情報・OSM の施設）と利用者の一覧で、`data/shared.sqlite` に置く。利用者の DB を開くときに `shared` として ATTACH する。利用者の DB には同じ名前のテーブルを作らないので、SQL はテーブル名だけで shared の方に届く（あると開くときに止める）
 - 利用者の一覧（`users`）：名前、scrypt のパスワードのハッシュ、session_key。名前は英小文字・数字・`_`・`-`（32 文字まで）。管理はコマンドだけ（user-add / user-passwd / user-del / user-list）
 - ログインの Cookie は「利用者名.有効期限.署名」。署名には設定の sessionSecret と利用者の session_key を混ぜる。パスワードを変えると session_key を作り直すので、その利用者のログイン中の端末はログアウトされる。利用者を消してもログインできなくなる
-- 見出しの右端のメニュー（≡）に、上から利用者名・「ログアウト」、（区切り線）「ブックマーク」、（区切り線）「このアプリについて」・「再読み込み」を置く（画面を切り替えるタブとは分ける。外を押す・Esc・画面の切り替えで閉じる）。「再読み込み」は画面を読み込み直す（スマホの PWA では、地図のある画面で下に引っ張って読み込み直すのがしにくいため）
+- 見出しの右端のメニュー（≡）に、上から利用者のアイコンと名前（押すとユーザー情報）、（区切り線）「ブックマーク」、（区切り線）「gtexpについて」（[Title] ShortText を使う。画面は「このアプリについて」）・「再読み込み」を置く（画面を切り替えるタブとは分ける。外を押す・Esc・画面の切り替えで閉じる）。「再読み込み」は画面を読み込み直す（スマホの PWA では、地図のある画面で下に引っ張って読み込み直すのがしにくいため）
+- ユーザー情報（`#/user`）：
+  - アイコン：画像を選ぶと、画面の側で中央を正方形に切り抜き、512×512 ピクセルより大きければ縮めて（小さければそのまま）、WebP（書けないブラウザーは PNG）で送る。サーバーは `data/users/<利用者名>/icon` に置く。未設定のときと読み込めないときは、初期のアイコン（人の形）を出す。メニューの利用者名の左にも出す
+  - データの取り込み：前の取り込みの画面をそのまま入れた（見出しのタブの「取り込み」はやめた）
+  - パスワードの変更：今のパスワードと、新しいパスワード（8 文字以上）を 2 回
+  - ログアウト：メニューから移した
 - 画面は、ログアウトのときに読み込み直す（前の利用者の地図の位置や作業中のタグ付けを残さないため）。ログイン画面には、最後にログインした利用者名を入れておく
 - 参照データを入れた日時（`isj-oaza`・`isj-gaiku`・`osm-poi` の loaded_at）と OSM の施設の件数（`osm-poi:counts`）は `shared_kv` に、ほか（Takeout の loaded_at、osm:last_run など）は利用者の `kv` に持つ。参照データを入れ直すと、利用者それぞれが次の取り込みで調べ直す
 - fetch-osm は、Nominatim の問い合わせの間隔をサーバー全体で守るため、全員の分を 1 回 150 件の中で、利用者を順に回しながら取る（結果は利用者ごと）
@@ -402,8 +411,8 @@ URL の `#` 以降で画面を切り替える。
 
 | 値 | 使う所 |
 |---|---|
-| [Title] Text / ShortText | 画面の見出し・ログイン画面・ページの題名・manifest、書き出しの題名、GPX の creator、OSM に送る User-Agent（`略名/バージョン (正式名; personal use)`）、起動時と使い方の表示 |
-| [Version] Text | ログイン画面・このアプリについて、見出しにマウスを載せたとき、GPX の creator、User-Agent、起動時と使い方の表示。package.json の version も同じ値にそろえる（違うと profile.mjs が注意を出す） |
+| [Title] Text / ShortText | ログイン画面・見出しのメニューの「〇〇について」・ページの題名・manifest、書き出しの題名、GPX の creator、OSM に送る User-Agent（`略名/バージョン (正式名; personal use)`）、起動時と使い方の表示 |
+| [Version] Text | ログイン画面・このアプリについて、GPX の creator、User-Agent、起動時と使い方の表示。package.json の version も同じ値にそろえる（違うと profile.mjs が注意を出す） |
 | [Copyright] Text | ログイン画面・このアプリについて、使い方の表示 |
 | [URL] Project | このアプリについて（プロジェクトの URL と LICENSE へのリンク） |
 | [AppId] Namespace・[URL] Notice・[Version] Number・[Copyright] Name | PROFILE に入れてあるが、今は使っていない |

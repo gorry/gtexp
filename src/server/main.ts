@@ -18,6 +18,7 @@ import { importSwarmZip, splitSwarmZips } from './swarm';
 import { errorDetail, fetchOsm, lookupOsm, osmRun } from './osm';
 import { importOsmPois } from './osmpoi';
 import { buildPoiKeys, listEntries, listNames } from './lists';
+import { ICON_MAX_BYTES, deleteIcon, iconType, iconVersion, readIcon, saveIcon } from './usericon';
 import { CONTENT_TYPES, EXPORT_FORMATS, render, type ExportData, type ExportFormat } from './exporter';
 import type { ClientConfig, PlaceKind, PlaceNote, PlaceSort, SearchGroup, SearchTarget, ZipImportResult } from '../shared/types';
 import { PROFILE } from '../shared/profile.gen';
@@ -51,6 +52,21 @@ function sendJson(res: ServerResponse, status: number, body: unknown, headers: R
   const data = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store', ...headers });
   res.end(data);
+}
+
+/** 画面から変えるときの、新しいパスワードの最短の長さ */
+const PASSWORD_MIN = 8;
+
+/** 本文をそのまま受け取る（上限を超えたら断る） */
+async function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) throw new HttpError(413, '画像が大きすぎます。別の画像を選んでください。');
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
 }
 
 async function readJsonBody(req: IncomingMessage, limit = 1_000_000): Promise<any> {
@@ -321,7 +337,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (!path.startsWith('/api/')) {
     if (method === 'POST' && path === '/share-target') {
       // 通常は Service Worker が受け取る。届いてしまったら取り込み画面へ案内する
-      res.writeHead(303, { Location: '/#/import?share=failed' });
+      res.writeHead(303, { Location: '/#/user?share=failed' });
       res.end();
       return;
     }
@@ -361,13 +377,57 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   if (path === '/api/me') {
-    sendJson(res, 200, user ? { loggedIn: true, user } : { loggedIn: false });
+    sendJson(res, 200, user ? { loggedIn: true, user, icon: iconVersion(userDir(config.dataDir, user)) } : { loggedIn: false });
     return;
   }
   if (!user) throw new HttpError(401, 'ログインしていません。ログインし直してください。');
   // ここから先は、ログインしている利用者の記録だけを扱う
   const db = userDb(config, user);
 
+  if (path === '/api/me/icon') {
+    // 利用者のアイコン。URL に版（?v=）を付けて読むので、長くキャッシュしてよい
+    const dir = userDir(config.dataDir, user);
+    if (method === 'GET') {
+      const icon = readIcon(dir);
+      if (!icon) throw new HttpError(404, 'アイコンはまだ設定されていません。');
+      res.writeHead(200, { 'Content-Type': icon.type, 'Cache-Control': 'private, max-age=31536000, immutable' });
+      res.end(icon.data);
+      return;
+    }
+    if (method === 'PUT') {
+      const data = await readRawBody(req, ICON_MAX_BYTES);
+      if (!iconType(data)) throw new HttpError(400, '画像を読み込めませんでした。別の画像を選んでください。');
+      mkdirSync(dir, { recursive: true });
+      saveIcon(dir, data);
+      sendJson(res, 200, { icon: iconVersion(dir) });
+      return;
+    }
+    if (method === 'DELETE') {
+      deleteIcon(dir);
+      sendJson(res, 200, { icon: null });
+      return;
+    }
+  }
+  if (path === '/api/me/password' && method === 'POST') {
+    // パスワードを変える。今のパスワードを確かめる（間違いはログインの失敗と同じに数える）。
+    // ほかの端末はログアウトされ、この端末には新しいログインを渡す
+    if (tooManyFailures()) throw new HttpError(429, 'パスワードの確認の失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度試してください。');
+    const { current, next } = await readJsonBody(req);
+    const u = getUser(shared, user);
+    if (!u || typeof current !== 'string' || !verifyPassword(current, u.passwordHash)) {
+      loginFailures.push(Date.now());
+      await new Promise((r) => setTimeout(r, 1000));
+      // 401 だと画面がログアウトしたとみなすので、400 で返す
+      throw new HttpError(400, '今のパスワードが違います。確認して、もう一度入力してください。');
+    }
+    if (typeof next !== 'string' || next.length < PASSWORD_MIN) throw new HttpError(400, `新しいパスワードは ${PASSWORD_MIN} 文字以上にしてください。`);
+    setPassword(shared, user, next);
+    const updated = getUser(shared, user)!;
+    sendJson(res, 200, { ok: true }, {
+      'Set-Cookie': issueSessionCookie(config.sessionSecret, user, updated.sessionKey, config.sessionDays, isHttps(req)),
+    });
+    return;
+  }
   if (path === '/api/config' && method === 'GET') {
     const body: ClientConfig = { mapsApiKey: config.mapsApiKey, mapId: config.mapId, tzOffsetMinutes: config.tzOffsetMinutes };
     sendJson(res, 200, body);

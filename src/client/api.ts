@@ -51,6 +51,18 @@ export const api = {
   me: () => request<MeResponse>('GET', '/api/me'),
   login: (user: string, password: string) => request<MeResponse>('POST', '/api/login', { user, password }),
   logout: () => request<MeResponse>('POST', '/api/logout'),
+  /** アイコンを置き換える（画面の側で切り抜き・縮小した画像） */
+  uploadIcon: async (image: Blob): Promise<{ icon: string | null }> => {
+    const res = await fetch('/api/me/icon', { method: 'PUT', body: image, headers: { 'Content-Type': image.type }, credentials: 'same-origin' });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized();
+      throw new ApiError(res.status, data.error ?? 'アイコンを保存できませんでした。もう一度試してください。');
+    }
+    return data;
+  },
+  deleteIcon: () => request<{ icon: string | null }>('DELETE', '/api/me/icon'),
+  changePassword: (current: string, next: string) => request<{ ok: boolean }>('POST', '/api/me/password', { current, next }),
   config: () => request<ClientConfig>('GET', '/api/config'),
   summary: () => request<SummaryResponse>('GET', '/api/summary'),
   imports: () => request<ImportRecord[]>('GET', '/api/imports'),
