@@ -850,6 +850,30 @@ textarea {
   min-width: 0;
 }
 
+/* 期間：年のドロップダウンは中身の幅だけにする。日付の 2 つの欄が欠けずに並ぶ幅（1 つ 140px ほど）がなければ、
+   日付だけ次の行に回す（スマホ） */
+.period-row {
+  flex-wrap: wrap;
+}
+
+.period-row > select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.period-dates {
+  flex: 1 1 300px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.period-dates > input {
+  flex: 1;
+  min-width: 0;
+}
+
 .check {
   display: flex;
   align-items: center;

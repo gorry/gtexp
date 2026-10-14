@@ -38,7 +38,7 @@ export function PeriodPicker({ from, to, onChange }: Props) {
   }, []);
   const wholeYear = from && from.slice(0, 4) === to.slice(0, 4) && from.endsWith('-01-01') && to.endsWith('-12-31') ? from.slice(0, 4) : '';
   return (
-    <div class="filter-row">
+    <div class="filter-row period-row">
       {/* 日付で指定しているときは「期間」（選べない表示だけの項目）を出す。「全期間」はいつでも選べて、期間を解除する */}
       <select
         value={wholeYear || (from || to ? CUSTOM : '')}
@@ -61,25 +61,27 @@ export function PeriodPicker({ from, to, onChange }: Props) {
         ))}
       </select>
       {/* 始めが終わりを追い越したら（終わりが始めより前になったら）、もう片方を同じ日にそろえる */}
-      <input
-        type="date"
-        value={from}
-        onChange={(e) => {
-          const f = e.currentTarget.value;
-          onChange(f, f && to && f > to ? f : to);
-        }}
-        aria-label="期間の始め"
-      />
-      <span class="muted">〜</span>
-      <input
-        type="date"
-        value={to}
-        onChange={(e) => {
-          const t = e.currentTarget.value;
-          onChange(from && t && t < from ? t : from, t);
-        }}
-        aria-label="期間の終わり"
-      />
+      <div class="period-dates">
+        <input
+          type="date"
+          value={from}
+          onChange={(e) => {
+            const f = e.currentTarget.value;
+            onChange(f, f && to && f > to ? f : to);
+          }}
+          aria-label="期間の始め"
+        />
+        <span class="muted">〜</span>
+        <input
+          type="date"
+          value={to}
+          onChange={(e) => {
+            const t = e.currentTarget.value;
+            onChange(from && t && t < from ? t : from, t);
+          }}
+          aria-label="期間の終わり"
+        />
+      </div>
     </div>
   );
 }
