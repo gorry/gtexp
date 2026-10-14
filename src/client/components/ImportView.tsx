@@ -389,29 +389,8 @@ function DeleteData({ kind, note, onDeleted }: { kind: 'timeline' | 'takeout' | 
   );
 }
 
-/** 自分で付けた名前・メモ・タグとブックマーク：書き出す（JSON）・読み込む（足し合わせる）・削除する */
+/** 自分で付けた名前・メモ・タグとブックマーク：書き出す（JSON）・削除する（読み込むときは「ファイルを送る」で送る） */
 function UserDataCard({ status, onChanged }: { status: { notes: number; bookmarks: number }; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const onFile = async (e: Event) => {
-    const input = e.currentTarget as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    setBusy(true);
-    setMessage('');
-    setError('');
-    try {
-      const r = await api.importUserData(file);
-      setMessage(`名前・メモ・タグ ${r.notes.toLocaleString()} か所と、ブックマーク ${r.bookmarks.toLocaleString()} 件を読み込みました。`);
-      onChanged();
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
   const empty = !status.notes && !status.bookmarks;
   return (
     <section class="card">
@@ -428,20 +407,14 @@ function UserDataCard({ status, onChanged }: { status: { notes: number; bookmark
             書き出す（JSON）
           </a>
         )}
-        <label class={`file-button${busy ? ' disabled' : ''}`}>
-          {busy ? '読み込んでいます…' : '読み込む'}
-          <input type="file" accept=".json,application/json" hidden disabled={busy} onChange={onFile} />
-        </label>
       </div>
       <p class="muted note">
-        書き出したファイルは、ほかの利用者やサーバーに移すときや、控えとして使えます。読み込むと、今あるものに足し合わせます（同じ場所の名前・メモ・タグと、同じ画面のブックマークの名前は、ファイルの内容に置き換えます）。
+        書き出したファイルは、ほかの利用者やサーバーに移すときや、控えとして使えます。上の「ファイルを送る」で送ると読み込み、今あるものに足し合わせます（同じ場所の名前・メモ・タグと、同じ画面のブックマークの名前は、ファイルの内容に置き換えます）。
       </p>
-      {message && <p>{message}</p>}
-      {error && <p class="error">{error}</p>}
       {!empty && (
         <DeleteData
           kind="userdata"
-          note="自分で付けた名前・メモ・タグと、ブックマークをすべて削除します。先に「書き出す」で保存しておくと、あとで「読み込む」で戻せます。"
+          note="自分で付けた名前・メモ・タグと、ブックマークをすべて削除します。先に「書き出す」で保存しておくと、あとで「ファイルを送る」で送れば戻せます。"
           onDeleted={onChanged}
         />
       )}
