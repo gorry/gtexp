@@ -50,9 +50,26 @@ export function PeriodPicker({ from, to, onChange }: Props) {
           <option value={y}>{y}年</option>
         ))}
       </select>
-      <input type="date" value={from} onChange={(e) => onChange(e.currentTarget.value, to)} aria-label="期間の始め" />
+      {/* 始めが終わりを追い越したら（終わりが始めより前になったら）、もう片方を同じ日にそろえる */}
+      <input
+        type="date"
+        value={from}
+        onChange={(e) => {
+          const f = e.currentTarget.value;
+          onChange(f, f && to && f > to ? f : to);
+        }}
+        aria-label="期間の始め"
+      />
       <span class="muted">〜</span>
-      <input type="date" value={to} onChange={(e) => onChange(from, e.currentTarget.value)} aria-label="期間の終わり" />
+      <input
+        type="date"
+        value={to}
+        onChange={(e) => {
+          const t = e.currentTarget.value;
+          onChange(from && t && t < from ? t : from, t);
+        }}
+        aria-label="期間の終わり"
+      />
     </div>
   );
 }
