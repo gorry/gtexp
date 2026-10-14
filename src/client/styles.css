@@ -1117,6 +1117,13 @@ textarea {
   border-left: 1px solid var(--border);
 }
 
+/* 集計の対象（滞在・移動・記録なし・出発・到着）がスマホの幅に収まるよう、余白を詰める */
+@media (max-width: 600px) {
+  .segmented button {
+    padding: 6px 10px;
+  }
+}
+
 .segmented button.active {
   background: var(--accent);
   color: var(--accent-fg);

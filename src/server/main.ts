@@ -122,7 +122,7 @@ function parsePlaceQuery(p: URLSearchParams): PlaceQuery {
   };
 }
 
-const TARGETS: SearchTarget[] = ['visits', 'activities', 'gaps'];
+const TARGETS: SearchTarget[] = ['visits', 'activities', 'gaps', 'departures', 'arrivals'];
 const GROUPS: SearchGroup[] = ['year', 'month', 'weekday', 'hour', 'mode'];
 
 function parseSearchQuery(p: URLSearchParams): SearchQuery {
@@ -156,7 +156,7 @@ function handleExport(db: DatabaseSync, p: URLSearchParams, res: ServerResponse)
     data = { kind: 'places', items: listPlaces(db, { ...q, limit: -1, offset: 0 }).items };
   } else if (source === 'search') {
     const q = parseSearchQuery(p);
-    if (q.target === 'gaps') throw new HttpError(400, '記録なしの時間は書き出せません。');
+    if (q.target !== 'visits' && q.target !== 'activities') throw new HttpError(400, '滞在と移動のほかは書き出せません。');
     ({ from, to } = q);
     const r = search(db, { ...q, limit: -1, offset: 0 });
     data = q.target === 'visits' ? { kind: 'visits', items: r.visits } : { kind: 'activities', items: r.activities };

@@ -24,6 +24,7 @@ import type {
   PlacesResponse,
   PlaceVisit,
   RecordGap,
+  MoveEvent,
   SearchGroup,
   SearchGroupRow,
   SearchResponse,
@@ -807,6 +808,7 @@ function likePattern(q: string): string {
  */
 export function search(db: DatabaseSync, query: SearchQuery): SearchResponse {
   if (query.target === 'gaps') return searchGaps(db, query);
+  if (query.target === 'departures' || query.target === 'arrivals') return searchMoves(db, query);
   const isVisits = query.target === 'visits';
   const t = isVisits ? 'v' : 'a';
   // 期間・曜日（始まった日で絞る）と、それ以外の条件を分けて持つ（時間の合計は、期間・曜日を切り分けで扱うため）
@@ -1110,6 +1112,120 @@ function searchGaps(db: DatabaseSync, query: SearchQuery): SearchResponse {
   const list = counted.reverse();
   const page = query.limit < 0 ? list.slice(query.offset) : list.slice(query.offset, query.offset + query.limit);
   return { target: 'gaps', totals, groups, visits: [], activities: [], gaps: page.map(toGap) };
+}
+
+/** 滞在の終わり（始まり）と移動の始まり（終わり）がこれ以内なら、続けて移動した（移動から着いた）とみなす */
+const MOVE_LINK_MS = 10 * 60_000;
+/** 一覧で、行き先（来た場所）を探す範囲 */
+const MOVE_OTHER_MS = DAY_MS;
+
+/**
+ * 集計の「出発」（主な滞在を終えて移動を始めたとき）と「到着」（移動を終えて主な滞在を始めたとき）。
+ * 移動どうしの乗り換えと、推定の立ち寄りは数えない。場所の条件は、出発では出た場所、到着では着いた場所に当てはめる。
+ * 期間・曜日・まとめ方は、出発（到着）した現地時刻で決める。数えるのは回数と日数だけ
+ */
+function searchMoves(db: DatabaseSync, query: SearchQuery): SearchResponse {
+  const departure = query.target === 'departures';
+  const group: SearchGroup = query.group === 'mode' ? 'year' : query.group;
+  const atLocal = departure ? 'v.end_local' : 'v.start_local';
+  const where = ['v.hierarchy_level = 0', 'v.estimated = 0'];
+  const params: (string | number)[] = [];
+  // 移動の始まり（終わり）が滞在の終わり（始まり）の前後 MOVE_LINK_MS 以内（activities_time の索引を使えるよう、始まりで範囲を絞る）
+  where.push(
+    departure
+      ? `EXISTS (SELECT 1 FROM activities a WHERE a.start_ms BETWEEN v.end_ms - ${MOVE_LINK_MS} AND v.end_ms + ${MOVE_LINK_MS})`
+      : `EXISTS (SELECT 1 FROM activities a WHERE a.start_ms BETWEEN v.start_ms - ${MOVE_OTHER_MS} AND v.start_ms + ${MOVE_LINK_MS}
+           AND a.end_ms BETWEEN v.start_ms - ${MOVE_LINK_MS} AND v.start_ms + ${MOVE_LINK_MS})`,
+  );
+  // 期間は前後 1 日広く絞り、出発（到着）した現地の日付で確かめる
+  if (query.from) {
+    where.push('v.local_date >= ?');
+    params.push(addDaysIso(query.from, -2));
+  }
+  if (query.to) {
+    where.push('v.local_date <= ?');
+    params.push(addDaysIso(query.to, 1));
+  }
+  if (query.kind === 'home') where.push("v.semantic_type IN ('HOME', 'INFERRED_HOME')");
+  if (query.kind === 'work') where.push("v.semantic_type IN ('WORK', 'INFERRED_WORK')");
+  if (query.kind === 'named') where.push("COALESCE(n.name, '') <> ''");
+  if (query.kind === 'unnamed') where.push("COALESCE(n.name, '') = ''");
+  if (query.q) {
+    const f = textFilter(query.q, 'v.place_id');
+    where.push(...f.where);
+    params.push(...f.params);
+  }
+  const from = `visits v LEFT JOIN place_notes n ON n.place_id = v.place_id
+     ${bestAddressJoin('v.place_id')}
+     ${bestNameJoin('v.place_id')}`;
+  const events = (
+    db.prepare(`SELECT v.id, ${atLocal} AS at FROM ${from} WHERE ${where.join(' AND ')} ORDER BY ${departure ? 'v.end_ms' : 'v.start_ms'}`).all(...params) as {
+      id: number;
+      at: string;
+    }[]
+  ).filter((e) => inSearchPeriod(query, e.at.slice(0, 10)));
+
+  const totals: SearchTotals = { count: events.length, days: 0, totalMs: 0, distanceM: 0 };
+  const rows = new Map<string, { count: number; dates: Set<string> }>();
+  const allDates = new Set<string>();
+  for (const e of events) {
+    const date = e.at.slice(0, 10);
+    allDates.add(date);
+    const k = groupKeyOf(group, e.at, '');
+    const r = rows.get(k) ?? { count: 0, dates: new Set<string>() };
+    r.count++;
+    r.dates.add(date);
+    rows.set(k, r);
+  }
+  totals.days = allDates.size;
+  const groups = [...rows.entries()]
+    .map(([key, r]): SearchGroupRow => ({ key, count: r.count, days: r.dates.size, totalMs: 0, distanceM: 0 }))
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+
+  const list = events.reverse();
+  const page = query.limit < 0 ? list.slice(query.offset) : list.slice(query.offset, query.offset + query.limit);
+  const visitById = db.prepare(
+    `SELECT v.*, p.visit_count, n.name AS note_name, n.memo AS note_memo, n.tags AS note_tags,
+       ${ADDRESS_COLUMNS},
+       ${NAME_COLUMNS}
+     FROM visits v LEFT JOIN places p ON p.place_id = v.place_id LEFT JOIN place_notes n ON n.place_id = v.place_id
+       ${bestAddressJoin('v.place_id')}
+       ${bestNameJoin('v.place_id')}
+     WHERE v.id = ?`,
+  );
+  // 行き先（出発のとき：次の主な滞在）・来た場所（到着のとき：前の主な滞在）
+  const nextVisit = db.prepare('SELECT id, start_ms FROM visits WHERE hierarchy_level = 0 AND estimated = 0 AND start_ms >= ? AND start_ms < ? ORDER BY start_ms LIMIT 1');
+  const prevVisit = db.prepare('SELECT id, end_ms FROM visits WHERE hierarchy_level = 0 AND estimated = 0 AND end_ms <= ? AND end_ms > ? AND start_ms < ? ORDER BY end_ms DESC LIMIT 1');
+  // 間の移動のうち、いちばん長い距離のものの手段
+  const mainMode = db.prepare('SELECT type FROM activities WHERE start_ms >= ? AND start_ms < ? ORDER BY distance_m DESC LIMIT 1');
+  const moves: MoveEvent[] = page.map((e) => {
+    const visit = toVisit(visitById.get(e.id) as Row);
+    let other: Visit | null = null;
+    let travelMs: number | null = null;
+    let mode: string | null = null;
+    if (departure) {
+      const n = nextVisit.get(visit.endMs, visit.endMs + MOVE_OTHER_MS) as Row | undefined;
+      if (n) {
+        other = toVisit(visitById.get(n.id) as Row);
+        travelMs = n.start_ms - visit.endMs;
+      }
+      mode = ((mainMode.get(visit.endMs - MOVE_LINK_MS, n ? n.start_ms : visit.endMs + MOVE_LINK_MS) as Row | undefined)?.type as string) ?? null;
+    } else {
+      const pv = prevVisit.get(visit.startMs, visit.startMs - MOVE_OTHER_MS, visit.startMs) as Row | undefined;
+      if (pv) {
+        other = toVisit(visitById.get(pv.id) as Row);
+        travelMs = visit.startMs - pv.end_ms;
+      }
+      mode = ((mainMode.get(pv ? pv.end_ms - MOVE_LINK_MS : visit.startMs - MOVE_OTHER_MS, visit.startMs) as Row | undefined)?.type as string) ?? null;
+    }
+    return { at: e.at, visit, other, mode, travelMs };
+  });
+  return { target: query.target, totals, groups, visits: [], activities: [], gaps: [], moves };
+}
+
+/** YYYY-MM-DD に日数を足す */
+function addDaysIso(date: string, days: number): string {
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
 /** 記録の現地時刻（2025-08-31T23:00:00.000+09:00）から、時差をミリ秒で */

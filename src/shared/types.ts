@@ -266,8 +266,8 @@ export interface PlaceDetailResponse {
 }
 
 /** 集計の対象とまとめ方 */
-/** 滞在・移動・記録なし（滞在にも移動にも入っていない時間） */
-export type SearchTarget = 'visits' | 'activities' | 'gaps';
+/** 滞在・移動・記録なし（滞在にも移動にも入っていない時間）・出発（滞在を終えて移動を始めた）・到着（移動を終えて滞在を始めた） */
+export type SearchTarget = 'visits' | 'activities' | 'gaps' | 'departures' | 'arrivals';
 export type SearchGroup = 'year' | 'month' | 'weekday' | 'hour' | 'mode';
 
 export interface SearchTotals {
@@ -291,6 +291,18 @@ export interface SearchResponse {
   visits: Visit[];
   activities: Activity[];
   gaps: RecordGap[];
+  /** 出発・到着 */
+  moves?: MoveEvent[];
+}
+
+/** 出発（到着）：出た（着いた）滞在と、行き先（来た場所）の滞在、間の移動のうち距離のいちばん長い手段、出てから着くまでの時間 */
+export interface MoveEvent {
+  /** 出発（到着）した現地時刻 */
+  at: string;
+  visit: Visit;
+  other: Visit | null;
+  mode: string | null;
+  travelMs: number | null;
 }
 
 /** 記録なし：滞在にも移動にも入っていない時間（短い隙間と、最初の記録より前・最後の記録より後は含めない） */

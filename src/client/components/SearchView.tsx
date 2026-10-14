@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import type { Activity, PlaceKind, RecordGap, SearchGroup, SearchGroupRow, SearchResponse, SearchTarget, Visit } from '../../shared/types';
+import type { Activity, MoveEvent, PlaceKind, RecordGap, SearchGroup, SearchGroupRow, SearchResponse, SearchTarget, Visit } from '../../shared/types';
 import { api } from '../api';
 import { filteredTitle, usePageTitle } from '../bookmarks';
 import { ACTIVITY_TYPES, WEEKDAYS, activityLabel, duration, hhmm, km, semanticLabel, shortDate, timeOnDay, totalDuration } from '../format';
@@ -49,7 +49,7 @@ function filtersToQuery(f: Filters, forApi: boolean): URLSearchParams {
   if (f.from) p.set('from', f.from);
   if (f.to) p.set('to', f.to);
   if (f.weekdays.length) p.set('weekdays', f.weekdays.join(','));
-  if (f.target === 'visits') {
+  if (hasPlaceFilter(f.target)) {
     if (f.q) p.set('q', f.q);
     if (f.kind) p.set('kind', f.kind);
   } else if (f.target === 'activities' && f.modes.length) {
@@ -87,7 +87,10 @@ function measureValue(row: SearchGroupRow, m: Measure): number {
   return row.distanceM;
 }
 
-const TARGET_LABELS: Record<SearchTarget, string> = { visits: '滞在', activities: '移動', gaps: '記録なし' };
+const TARGET_LABELS: Record<SearchTarget, string> = { visits: '滞在', activities: '移動', gaps: '記録なし', departures: '出発', arrivals: '到着' };
+
+/** 場所の条件で絞れる対象（出発は出た場所、到着は着いた場所） */
+const hasPlaceFilter = (t: SearchTarget) => t === 'visits' || t === 'departures' || t === 'arrivals';
 
 function measureText(row: SearchGroupRow, m: Measure, target: SearchTarget): string {
   if (m === 'count') return `${row.count.toLocaleString()}${target === 'activities' ? '件' : '回'}`;
@@ -149,6 +152,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
   const [visits, setVisits] = useState<Visit[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [gaps, setGaps] = useState<RecordGap[]>([]);
+  const [moves, setMoves] = useState<MoveEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const request = useRef(0);
@@ -174,6 +178,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
       setVisits((prev) => (offset === 0 ? r.visits : [...prev, ...r.visits]));
       setActivities((prev) => (offset === 0 ? r.activities : [...prev, ...r.activities]));
       setGaps((prev) => (offset === 0 ? r.gaps : [...prev, ...r.gaps]));
+      setMoves((prev) => (offset === 0 ? r.moves ?? [] : [...prev, ...(r.moves ?? [])]));
     } catch (e) {
       if (id === request.current) setError((e as Error).message);
     } finally {
@@ -194,12 +199,14 @@ export function SearchView({ query }: { query: URLSearchParams }) {
   const isVisits = filters.target === 'visits';
   const isActivities = filters.target === 'activities';
   const isGaps = filters.target === 'gaps';
+  const isMoves = filters.target === 'departures' || filters.target === 'arrivals';
   // グラフと表は、結果を取得したときのまとめ方で描く
   const group = data?.group ?? filters.group;
   const groups = useMemo(() => (data ? fillGroups(data.group, data.groups) : []), [data]);
-  const effectiveMeasure: Measure = !isActivities && measure === 'distance' ? 'count' : measure;
+  // 距離は移動だけ、時間は出発・到着にはない
+  const effectiveMeasure: Measure = (!isActivities && measure === 'distance') || (isMoves && measure === 'time') ? 'count' : measure;
   const shown = data ? data.totals.count : 0;
-  const loaded = isVisits ? visits.length : isActivities ? activities.length : gaps.length;
+  const loaded = isVisits ? visits.length : isActivities ? activities.length : isGaps ? gaps.length : moves.length;
 
   const bars: Bar[] = groups.map((g, i) => ({
     key: g.key,
@@ -216,7 +223,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
       <h2>集計</h2>
       <section class="card filters-card">
         <div class="segmented" role="radiogroup" aria-label="対象">
-          {(['visits', 'activities', 'gaps'] as SearchTarget[]).map((t) => (
+          {(['visits', 'activities', 'gaps', 'departures', 'arrivals'] as SearchTarget[]).map((t) => (
             <button
               type="button"
               role="radio"
@@ -237,7 +244,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
           ))}
           <span class="muted chips-note">{filters.weekdays.length ? '' : 'すべての曜日'}</span>
         </div>
-        {isVisits ? (
+        {hasPlaceFilter(filters.target) ? (
           <div class="filter-row">
             <input type="search" value={qInput} onInput={(e) => setQInput(e.currentTarget.value)} placeholder="場所の名前・メモ・住所、#タグ" />
             <select value={filters.kind} onChange={(e) => set({ kind: e.currentTarget.value as PlaceKind })} aria-label="種類">
@@ -262,6 +269,14 @@ export function SearchView({ query }: { query: URLSearchParams }) {
         ) : (
           <p class="muted note">滞在にも移動にも記録されていない時間です（10 分未満の隙間は除きます）。端末の電源が切れていたときや、位置の記録が止まっていたときに起こります。</p>
         )}
+        {isMoves && (
+          <p class="muted note">
+            {filters.target === 'departures'
+              ? '滞在を終えて移動を始めた回数です。場所の条件は、出た場所に当てはめます。'
+              : '移動を終えて滞在を始めた回数です。場所の条件は、着いた場所に当てはめます。'}
+            乗り換えと、推定の立ち寄りは数えません。
+          </p>
+        )}
         {isVisits && !filters.q && !filters.kind && (
           <p class="muted note">入れ子の場所は数えていません（時間が二重にならないように）。場所で絞ると入れ子も含めます。</p>
         )}
@@ -273,7 +288,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
           <div class="stat-tiles">
             <div class="stat"><span class="stat-value">{data.totals.count.toLocaleString()}</span><span class="stat-label">{isActivities ? '件' : '回'}</span></div>
             <div class="stat"><span class="stat-value">{data.totals.days.toLocaleString()}</span><span class="stat-label">日</span></div>
-            <div class="stat"><span class="stat-value">{totalDuration(data.totals.totalMs)}</span><span class="stat-label">{isVisits ? '滞在' : isActivities ? '移動時間' : '記録なし'}</span></div>
+            {!isMoves && <div class="stat"><span class="stat-value">{totalDuration(data.totals.totalMs)}</span><span class="stat-label">{isVisits ? '滞在' : isActivities ? '移動時間' : '記録なし'}</span></div>}
             {isActivities && <div class="stat"><span class="stat-value">{km(data.totals.distanceM)}</span><span class="stat-label">距離</span></div>}
           </div>
 
@@ -289,7 +304,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
               <select value={effectiveMeasure} onChange={(e) => set({ measure: e.currentTarget.value as Measure })} aria-label="値">
                 <option value="count">{countName}</option>
                 <option value="days">日数</option>
-                <option value="time">時間</option>
+                {!isMoves && <option value="time">時間</option>}
                 {isActivities && <option value="distance">距離</option>}
               </select>
             </div>
@@ -315,7 +330,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
                     <th>{GROUP_LABELS[group].replace(/ごと.*/, '')}</th>
                     <th>{countName}</th>
                     <th>日数</th>
-                    <th>時間</th>
+                    {!isMoves && <th>時間</th>}
                     {isActivities && <th>距離</th>}
                   </tr>
                 </thead>
@@ -325,7 +340,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
                       <td>{groupLabel(group, g.key)}</td>
                       <td>{g.count.toLocaleString()}</td>
                       <td>{g.days.toLocaleString()}</td>
-                      <td>{totalDuration(g.totalMs)}</td>
+                      {!isMoves && <td>{totalDuration(g.totalMs)}</td>}
                       {isActivities && <td>{km(g.distanceM)}</td>}
                     </tr>
                   ))}
@@ -336,14 +351,16 @@ export function SearchView({ query }: { query: URLSearchParams }) {
 
           <section class="card">
             <h3>記録（新しい順）</h3>
-            {!isGaps && <ExportLinks source="search" params={filtersToQuery(filters, true)} count={shown} />}
+            {(isVisits || isActivities) && <ExportLinks source="search" params={filtersToQuery(filters, true)} count={shown} />}
             {shown === 0 && <p class="muted">条件に合う記録はありません。</p>}
             <ul class="record-list">
               {isVisits
                 ? visits.map((v) => <VisitRow v={v} />)
                 : isActivities
                   ? activities.map((a) => <ActivityRow a={a} />)
-                  : gaps.map((g) => <GapRow g={g} />)}
+                  : isGaps
+                    ? gaps.map((g) => <GapRow g={g} />)
+                    : moves.map((m) => <MoveRow m={m} departure={filters.target === 'departures'} />)}
             </ul>
             {loaded < shown && (
               <button type="button" class="more-btn" disabled={loading} onClick={() => load(loaded)}>
@@ -370,6 +387,31 @@ function VisitRow({ v }: { v: Visit }) {
       {v.hierarchyLevel > 0 && <span class="chip">入れ子</span>}
       {v.estimated && <EstimatedChip />}
       {v.note && <TagList tags={v.note.tags} />}
+    </li>
+  );
+}
+
+/** 出発（到着）：出た（着いた）場所と、行き先（来た場所）・間の移動の手段と時間 */
+function MoveRow({ m, departure }: { m: MoveEvent; departure: boolean }) {
+  const date = m.at.slice(0, 10);
+  const place = (v: Visit) => <a href={`#/place/${encodeURIComponent(v.placeId)}`}>{visitName(v)}</a>;
+  const [icon] = m.mode ? activityLabel(m.mode) : [''];
+  const via = m.travelMs != null ? `（${icon ? `${icon} ` : ''}${duration(0, m.travelMs)}）` : icon ? `（${icon}）` : '';
+  return (
+    <li>
+      <a class="record-date" href={`#/day/${date}`}>{shortDate(date)}</a>
+      <span class="muted">{hhmm(m.at)}</span>
+      {departure ? (
+        <span>
+          {place(m.visit)}を出発{m.other && <> → {place(m.other)}</>}
+          <span class="muted">{via}</span>
+        </span>
+      ) : (
+        <span>
+          {place(m.visit)}に到着{m.other && <> ← {place(m.other)}から</>}
+          <span class="muted">{via}</span>
+        </span>
+      )}
     </li>
   );
 }
