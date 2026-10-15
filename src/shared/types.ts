@@ -373,6 +373,12 @@ export interface MeResponse {
   user?: string;
   /** アイコンの版（置いた日時）。null は未設定（初期のアイコンを出す） */
   icon?: string | null;
+  /** 2 段階認証を使っているか */
+  mfa?: boolean;
+  /** 残っている予備のコードの数 */
+  recoveryLeft?: number;
+  /** パスワードは合い、2 段階認証の確認コードを待っている（ログインの 1 段階目の応答） */
+  mfaRequired?: boolean;
 }
 
 /** Takeout の保存リスト（保存リストのタブ） */

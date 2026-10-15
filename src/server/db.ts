@@ -276,6 +276,16 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TEXT NOT NULL
 );
 
+-- 2 段階認証（mfa.ts）。secret は有効にした鍵、pending は設定の途中の鍵（どちらも暗号化）。
+-- last_step は最後に使ったコードの時刻の区切り、recovery は予備のコードのハッシュ（JSON の配列）
+CREATE TABLE IF NOT EXISTS user_mfa (
+  name TEXT PRIMARY KEY,
+  secret TEXT,
+  pending TEXT,
+  last_step INTEGER NOT NULL DEFAULT 0,
+  recovery TEXT NOT NULL DEFAULT '[]'
+);
+
 -- 参照データ（位置参照情報・OSM の施設）を入れた日時など。利用者の DB の kv と名前を分ける
 CREATE TABLE IF NOT EXISTS shared_kv (
   key TEXT PRIMARY KEY,
@@ -284,7 +294,7 @@ CREATE TABLE IF NOT EXISTS shared_kv (
 `;
 
 /** 全員で使うテーブルの名前。利用者の DB にあってはいけない（あると名前だけで引いたときにそちらに届いてしまう） */
-const SHARED_TABLES = ['areas', 'osm_pois', 'osm_poi_keys', 'users', 'shared_kv'];
+const SHARED_TABLES = ['areas', 'osm_pois', 'osm_poi_keys', 'users', 'user_mfa', 'shared_kv'];
 
 const PRAGMAS = 'PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 10000;';
 

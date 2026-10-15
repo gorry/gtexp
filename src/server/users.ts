@@ -47,8 +47,16 @@ export function setPassword(shared: DatabaseSync, name: string, password: string
   if (!r.changes) throw new Error(`${name} という利用者はいません`);
 }
 
+/** ログイン中の端末をすべてログアウトさせる（Cookie の署名に混ぜる値を作り直す）。新しい値を返す */
+export function rotateSessionKey(shared: DatabaseSync, name: string): string {
+  const key = newSessionKey();
+  shared.prepare('UPDATE users SET session_key = ? WHERE name = ?').run(key, name);
+  return key;
+}
+
 /** 利用者を消す（ログインできなくするだけで、記録のフォルダーは消さない） */
 export function deleteUser(shared: DatabaseSync, name: string): void {
   const r = shared.prepare('DELETE FROM users WHERE name = ?').run(name);
   if (!r.changes) throw new Error(`${name} という利用者はいません`);
+  shared.prepare('DELETE FROM user_mfa WHERE name = ?').run(name);
 }

@@ -9,7 +9,8 @@ import { createInterface } from 'node:readline/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import { loadConfig, describeConfig, type Config } from './config';
 import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
-import { addUser, checkUserName, deleteUser, getUser, listUsers, setPassword } from './users';
+import { checkMfaCode, disableMfa, finishMfaSetup, mfaEnabled, otpauthUri, recoveryLeft, renewRecoveryCodes, startMfaSetup } from './mfa';
+import { addUser, checkUserName, deleteUser, getUser, listUsers, rotateSessionKey, setPassword } from './users';
 import { recordImport, addBookmark, deleteBookmark, listBookmarks, renameBookmark, reorderBookmarks, bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
 import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
@@ -50,10 +51,32 @@ class HttpError extends Error {
   }
 }
 
-function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
+function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string | string[]> = {}): void {
   const data = JSON.stringify(body);
   res.writeHead(status, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-store', ...headers });
   res.end(data);
+}
+
+/**
+ * 大事な操作の前に本人を確かめる。password を渡したらパスワードを、2 段階認証がオンならコード（6 桁か予備のコード）を確かめる。
+ * 間違いはログインの失敗と同じに数え、続いたら断る。401 だと画面がログアウトしたとみなすので、400 で返す
+ */
+async function confirmIdentity(config: Config, shared: DatabaseSync, user: string, given: { password?: unknown; code?: unknown }): Promise<void> {
+  if (tooManyFailures()) throw new HttpError(429, '確認の失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度試してください。');
+  const fail = async (message: string) => {
+    loginFailures.push(Date.now());
+    await new Promise((r) => setTimeout(r, 1000));
+    throw new HttpError(400, message);
+  };
+  if ('password' in given) {
+    const u = getUser(shared, user);
+    if (!u || typeof given.password !== 'string' || !verifyPassword(given.password, u.passwordHash)) {
+      await fail('今のパスワードが違います。確認して、もう一度入力してください。');
+    }
+  }
+  if (mfaEnabled(shared, user) && (typeof given.code !== 'string' || !checkMfaCode(shared, user, given.code, config.sessionSecret))) {
+    await fail('確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+  }
 }
 
 /** 画面から変えるときの、新しいパスワードの最短の長さ */
@@ -384,7 +407,13 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   if (path === '/api/me') {
-    sendJson(res, 200, user ? { loggedIn: true, user, icon: iconVersion(userDir(config.dataDir, user)) } : { loggedIn: false });
+    sendJson(
+      res,
+      200,
+      user
+        ? { loggedIn: true, user, icon: iconVersion(userDir(config.dataDir, user)), mfa: mfaEnabled(shared, user), recoveryLeft: recoveryLeft(shared, user) }
+        : { loggedIn: false },
+    );
     return;
   }
   if (!user) throw new HttpError(401, 'ログインしていません。ログインし直してください。');
@@ -419,20 +448,48 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     // パスワードを変える。今のパスワードを確かめる（間違いはログインの失敗と同じに数える）。
     // ほかの端末はログアウトされ、この端末には新しいログインを渡す
     if (tooManyFailures()) throw new HttpError(429, 'パスワードの確認の失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度試してください。');
-    const { current, next } = await readJsonBody(req);
-    const u = getUser(shared, user);
-    if (!u || typeof current !== 'string' || !verifyPassword(current, u.passwordHash)) {
-      loginFailures.push(Date.now());
-      await new Promise((r) => setTimeout(r, 1000));
-      // 401 だと画面がログアウトしたとみなすので、400 で返す
-      throw new HttpError(400, '今のパスワードが違います。確認して、もう一度入力してください。');
-    }
+    const { current, next, code } = await readJsonBody(req);
     if (typeof next !== 'string' || next.length < PASSWORD_MIN) throw new HttpError(400, `新しいパスワードは ${PASSWORD_MIN} 文字以上にしてください。`);
+    await confirmIdentity(config, shared, user, { password: current, code });
     setPassword(shared, user, next);
     const updated = getUser(shared, user)!;
     sendJson(res, 200, { ok: true }, {
       'Set-Cookie': issueSessionCookie(config.sessionSecret, user, updated.sessionKey, config.sessionDays, isHttps(req)),
     });
+    return;
+  }
+  if (path === '/api/me/mfa/setup' && method === 'POST') {
+    // 2 段階認証の設定を始める：新しい鍵を作り、アプリに登録する URI（QR コードにする）と鍵の文字列を返す
+    if (mfaEnabled(shared, user)) throw new HttpError(400, '2 段階認証はすでに有効です。');
+    const secret = startMfaSetup(shared, user, config.sessionSecret);
+    sendJson(res, 200, { uri: otpauthUri(PROFILE.shortTitle, user, secret), secret });
+    return;
+  }
+  if (path === '/api/me/mfa/enable' && method === 'POST') {
+    // アプリの 6 桁が合えば有効にし、予備のコードを 1 回だけ返す。ほかの端末はログアウトさせる
+    // （2 段階認証なしでログインした端末を残さない）。この端末には新しいログインを渡す
+    const { code } = await readJsonBody(req);
+    const codes = typeof code === 'string' ? finishMfaSetup(shared, user, code, config.sessionSecret) : null;
+    if (!codes) throw new HttpError(400, '確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+    const key = rotateSessionKey(shared, user);
+    sendJson(res, 200, { recoveryCodes: codes }, {
+      'Set-Cookie': issueSessionCookie(config.sessionSecret, user, key, config.sessionDays, isHttps(req)),
+    });
+    return;
+  }
+  if (path === '/api/me/mfa/disable' && method === 'POST') {
+    // 無効にする：パスワードとコードの両方を確かめる
+    const { password, code } = await readJsonBody(req);
+    await confirmIdentity(config, shared, user, { password, code });
+    disableMfa(shared, user);
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+  if (path === '/api/me/mfa/recovery' && method === 'POST') {
+    // 予備のコードを作り直す（前のものは使えなくなる）。コードを確かめる
+    const { code } = await readJsonBody(req);
+    await confirmIdentity(config, shared, user, { code });
+    sendJson(res, 200, { recoveryCodes: renewRecoveryCodes(shared, user) });
     return;
   }
   const purge = /^\/api\/data\/(timeline|takeout|swarm|userdata)$/.exec(path);
@@ -732,6 +789,15 @@ async function main(): Promise<void> {
       console.log(`${name} のパスワードを変えました`);
       break;
     }
+    case 'user-mfa-reset': {
+      // 2 段階認証を外す（アプリを使えなくなり、予備のコードもないとき。sessionSecret を変えたときも）
+      const name = args[0] ?? '';
+      const config = loadConfig();
+      const shared = openSharedDb(config.dataDir);
+      if (!getUser(shared, name)) throw new Error(`${name} という利用者はいません`);
+      console.log(disableMfa(shared, name) ? `${name} の 2 段階認証を外しました。パスワードだけでログインできます` : `${name} は 2 段階認証を使っていません`);
+      break;
+    }
     case 'user-del': {
       // ログインできなくするだけで、記録のフォルダーは残す
       const name = args[0] ?? '';
@@ -853,6 +919,7 @@ ${PROFILE.copyright}
   check                  設置を確かめる（サービスの定義・ビルド・画面のファイル・設定・持ち主・動いているサーバーのバージョンなど）
   user-add <名前>        利用者を足す（パスワードを聞く）。名前は英小文字・数字・_・- で 32 文字まで
   user-passwd <名前>     パスワードを変える（その利用者のログイン中の端末はすべてログアウトされる）
+  user-mfa-reset <名前>  2 段階認証を外す（アプリを使えなくなり、予備のコードもないとき）
   user-del <名前>        利用者を消す（ログインできなくするだけ。記録のフォルダー data/users/<名前> は残す）
   user-list              利用者の一覧
   import [--user 名前] <file>

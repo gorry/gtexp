@@ -93,9 +93,17 @@ export async function runCheck(config: Config): Promise<boolean> {
 
   // 利用者
   try {
-    const n = listUsers(openSharedDb(config.dataDir)).length;
+    const shared = openSharedDb(config.dataDir);
+    const n = listUsers(shared).length;
     if (n) add('ok', `利用者 ${n} 人`);
     else add('warn', '利用者がいない（ログインできない）', 'node dist/server.mjs user-add <名前>');
+    // 2 段階認証のコードは時刻から作るので、サーバーの時計がずれると合わなくなる。使っている人がいれば、時刻を合わせる仕組みを確かめる
+    const mfaUsers = (shared.prepare('SELECT COUNT(*) AS n FROM user_mfa WHERE secret IS NOT NULL').get() as any).n as number;
+    if (mfaUsers) {
+      const sync = TIME_SYNC_DAEMONS.find(running);
+      if (sync) add('ok', `2 段階認証 ${mfaUsers} 人・時刻合わせ ${sync}`);
+      else add('warn', `2 段階認証を ${mfaUsers} 人が使っているが、時刻を合わせる仕組み（ntpd など）が動いていない`, 'サーバーの時計がずれると確認コードが合わなくなります。ntpd などで時刻を合わせてください');
+    }
   } catch (e) {
     add('error', `全員で使う DB を開けない：${(e as Error).message}`);
   }
@@ -159,6 +167,19 @@ function newestMtime(dir: string): number {
     newest = Math.max(newest, e.isDirectory() ? newestMtime(p) : statSync(p).mtimeMs);
   }
   return newest;
+}
+
+/** 時刻を合わせる仕組みのプロセス名 */
+const TIME_SYNC_DAEMONS = ['ntpd', 'chronyd', 'openntpd', 'systemd-timesyncd', 'timesyncd'];
+
+/** その名前のプロセスが動いているか */
+function running(name: string): boolean {
+  try {
+    execFileSync('pgrep', ['-x', name], { stdio: 'ignore' });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** FreeBSD の rc.conf の値（なければ空） */
