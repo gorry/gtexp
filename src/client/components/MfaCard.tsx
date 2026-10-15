@@ -7,7 +7,8 @@ import { api } from '../api';
  * 有効にしたときと作り直したときだけ、予備のコードを表示する
  */
 export function MfaCard({ enabled, recoveryLeft, onChanged }: { enabled: boolean; recoveryLeft: number; onChanged: () => void }) {
-  const [setup, setSetup] = useState<{ svg: string; secret: string } | null>(null);
+  const [setup, setSetup] = useState<{ uri: string; svg: string; secret: string } | null>(null);
+  const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<'' | 'disable' | 'recovery'>('');
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
@@ -38,7 +39,8 @@ export function MfaCard({ enabled, recoveryLeft, onChanged }: { enabled: boolean
   const start = () =>
     run(async () => {
       const r = await api.mfaSetup();
-      setSetup({ svg: await qrSvg(r.uri), secret: r.secret });
+      setCopied(false);
+      setSetup({ uri: r.uri, svg: await qrSvg(r.uri), secret: r.secret });
     });
   const enable = (e: Event) => {
     e.preventDefault();
@@ -132,10 +134,27 @@ export function MfaCard({ enabled, recoveryLeft, onChanged }: { enabled: boolean
             <li>スマホの認証アプリ（Google Authenticator など）で、次の QR コードを読み取ります。</li>
           </ol>
           <div class="mfa-qr" dangerouslySetInnerHTML={{ __html: setup.svg }} />
+          {/* この画面を見ているスマホに認証アプリがあるときは、QR コードを読み取る代わりに、登録の内容（otpauth://）をそのまま開く */}
+          <p class="muted note">この画面を開いているスマホに認証アプリがあるときは、次のボタンで登録できます。</p>
+          <a class="file-button" href={setup.uri}>
+            認証アプリで開く
+          </a>
           <p class="muted note">
-            読み取れないときは、アプリで「セットアップキーを入力」を選び、次のキーを入力します。
+            どちらもできないときは、アプリで「セットアップキーを入力」を選び、次のキーを入力します。
             <br />
-            <code class="mfa-secret">{setup.secret.replace(/(.{4})/g, '$1 ').trim()}</code>
+            <code class="mfa-secret">{setup.secret.replace(/(.{4})/g, '$1 ').trim()}</code>{' '}
+            <button
+              type="button"
+              class="text-btn"
+              onClick={() =>
+                navigator.clipboard
+                  ?.writeText(setup.secret)
+                  .then(() => setCopied(true))
+                  .catch(() => {})
+              }
+            >
+              {copied ? 'コピーしました' : 'コピー'}
+            </button>
           </p>
           <ol start={2}>
             <li>アプリに表示された 6 桁を入力して、「有効にする」を押します。</li>
