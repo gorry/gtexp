@@ -39,6 +39,37 @@ export function clearSessionCookie(): string {
   return `${COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 }
 
+// 2 段階認証の途中（パスワードは合った）ことを表す Cookie。5 分だけ有効で、2 段階目の /api/login/mfa にだけ送られる。
+// 署名には session_key と用途を混ぜるので、ログインの Cookie とは取り違えない
+const MFA_COOKIE = 'gtexp_mfa';
+const MFA_PENDING_SEC = 5 * 60;
+
+export function issueMfaPendingCookie(secret: string, user: string, sessionKey: string, secure: boolean): string {
+  const payload = `${user}.${Date.now() + MFA_PENDING_SEC * 1000}`;
+  const value = `${payload}.${sign(payload, `${secret}${sessionKey}:mfa`)}`;
+  const attrs = [`${MFA_COOKIE}=${value}`, 'Path=/api/login', 'HttpOnly', 'SameSite=Strict', `Max-Age=${MFA_PENDING_SEC}`];
+  if (secure) attrs.push('Secure');
+  return attrs.join('; ');
+}
+
+export function clearMfaPendingCookie(): string {
+  return `${MFA_COOKIE}=; Path=/api/login; HttpOnly; SameSite=Strict; Max-Age=0`;
+}
+
+/** 2 段階認証の途中の利用者（パスワードが合ってから 5 分以内）。なければ null */
+export function mfaPendingUser(req: IncomingMessage, secret: string, sessionKeyOf: (user: string) => string | null): string | null {
+  const m = (req.headers.cookie ?? '').match(new RegExp(`(?:^|;\\s*)${MFA_COOKIE}=([^;]+)`));
+  if (!m) return null;
+  const [user, exp, sig] = m[1].split('.');
+  if (!user || !exp || !sig) return null;
+  const key = sessionKeyOf(user);
+  if (key == null) return null;
+  const expected = Buffer.from(sign(`${user}.${exp}`, `${secret}${key}:mfa`));
+  const actual = Buffer.from(sig);
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  return Number(exp) > Date.now() ? user : null;
+}
+
 /**
  * ログインしている利用者の名前（していなければ null）。sessionKeyOf はその利用者の session_key
  * （いなければ null）を返す関数

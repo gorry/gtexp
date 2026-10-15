@@ -8,7 +8,7 @@ import { basename, extname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import type { DatabaseSync } from 'node:sqlite';
 import { loadConfig, describeConfig, type Config } from './config';
-import { clearSessionCookie, hashPassword, isHttps, issueSessionCookie, loggedInUser, verifyPassword } from './auth';
+import { clearMfaPendingCookie, clearSessionCookie, hashPassword, isHttps, issueMfaPendingCookie, issueSessionCookie, loggedInUser, mfaPendingUser, verifyPassword } from './auth';
 import { checkMfaCode, disableMfa, finishMfaSetup, mfaEnabled, otpauthUri, recoveryLeft, renewRecoveryCodes, startMfaSetup } from './mfa';
 import { addUser, checkUserName, deleteUser, getUser, listUsers, rotateSessionKey, setPassword } from './users';
 import { recordImport, addBookmark, deleteBookmark, listBookmarks, renameBookmark, reorderBookmarks, bulkTags, normalizeTag, getCalendar, getDay, getPlace, getSummary, getTrip, listImports, listPlaces, placesExtent, listTrips, openSharedDb, openUserDb, savePlaceNote, userDir, search, type PlaceQuery, type SearchQuery } from './db';
@@ -390,8 +390,32 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
       await new Promise((r) => setTimeout(r, 1000));
       throw new HttpError(401, '利用者名かパスワードが違います。確認して、もう一度入力してください。');
     }
+    if (mfaEnabled(shared, user.name)) {
+      // 2 段階認証がオン：ログインの Cookie はまだ渡さず、確認コードを待つ（5 分）
+      sendJson(res, 200, { loggedIn: false, mfaRequired: true }, {
+        'Set-Cookie': issueMfaPendingCookie(config.sessionSecret, user.name, user.sessionKey, isHttps(req)),
+      });
+      return;
+    }
     sendJson(res, 200, { loggedIn: true, user: user.name }, {
       'Set-Cookie': issueSessionCookie(config.sessionSecret, user.name, user.sessionKey, config.sessionDays, isHttps(req)),
+    });
+    return;
+  }
+  if (path === '/api/login/mfa' && method === 'POST') {
+    // ログインの 2 段階目：アプリの 6 桁のコードか、予備のコードを確かめる（間違いはログインの失敗と同じに数える）
+    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度ログインしてください。');
+    const name = mfaPendingUser(req, config.sessionSecret, (n) => getUser(shared, n)?.sessionKey ?? null);
+    if (!name) throw new HttpError(400, '確認の時間が過ぎました。もう一度、パスワードからログインしてください。');
+    const { code } = await readJsonBody(req);
+    if (typeof code !== 'string' || !checkMfaCode(shared, name, code, config.sessionSecret)) {
+      loginFailures.push(Date.now());
+      await new Promise((r) => setTimeout(r, 1000));
+      throw new HttpError(400, '確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+    }
+    const u = getUser(shared, name)!;
+    sendJson(res, 200, { loggedIn: true, user: name }, {
+      'Set-Cookie': [issueSessionCookie(config.sessionSecret, name, u.sessionKey, config.sessionDays, isHttps(req)), clearMfaPendingCookie()],
     });
     return;
   }

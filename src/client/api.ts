@@ -51,6 +51,14 @@ export const api = {
   me: () => request<MeResponse>('GET', '/api/me'),
   login: (user: string, password: string) => request<MeResponse>('POST', '/api/login', { user, password }),
   logout: () => request<MeResponse>('POST', '/api/logout'),
+  /** ログインの 2 段階目（アプリの 6 桁か予備のコード） */
+  loginMfa: (code: string) => request<MeResponse>('POST', '/api/login/mfa', { code }),
+  /** 2 段階認証の設定を始める（アプリに登録する URI と鍵） */
+  mfaSetup: () => request<{ uri: string; secret: string }>('POST', '/api/me/mfa/setup'),
+  /** アプリの 6 桁が合えば有効にする（予備のコードが返る） */
+  mfaEnable: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/api/me/mfa/enable', { code }),
+  mfaDisable: (password: string, code: string) => request<{ ok: boolean }>('POST', '/api/me/mfa/disable', { password, code }),
+  mfaRecovery: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/api/me/mfa/recovery', { code }),
   /** アイコンを置き換える（画面の側で切り抜き・縮小した画像） */
   uploadIcon: async (image: Blob): Promise<{ icon: string | null }> => {
     const res = await fetch('/api/me/icon', { method: 'PUT', body: image, headers: { 'Content-Type': image.type }, credentials: 'same-origin' });
@@ -79,7 +87,7 @@ export const api = {
     }
     return data;
   },
-  changePassword: (current: string, next: string) => request<{ ok: boolean }>('POST', '/api/me/password', { current, next }),
+  changePassword: (current: string, next: string, code = '') => request<{ ok: boolean }>('POST', '/api/me/password', { current, next, code }),
   config: () => request<ClientConfig>('GET', '/api/config'),
   summary: () => request<SummaryResponse>('GET', '/api/summary'),
   imports: () => request<ImportRecord[]>('GET', '/api/imports'),

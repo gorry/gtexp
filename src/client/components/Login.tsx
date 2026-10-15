@@ -18,17 +18,33 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // 2 段階認証を使っている利用者は、パスワードのあとに確認コード（アプリの 6 桁か予備のコード）を入れる
+  const [needCode, setNeedCode] = useState(false);
+  const [code, setCode] = useState('');
+
+  const done = (name: string) => {
+    try {
+      localStorage.setItem(LAST_USER_KEY, name);
+    } catch {}
+    onLogin(name);
+  };
 
   const submit = async (e: Event) => {
     e.preventDefault();
     setBusy(true);
     setError('');
     try {
+      if (needCode) {
+        const r = await api.loginMfa(code.trim());
+        done(r.user ?? user.trim());
+        return;
+      }
       const r = await api.login(user.trim(), password);
-      try {
-        localStorage.setItem(LAST_USER_KEY, r.user ?? user.trim());
-      } catch {}
-      onLogin(r.user ?? user.trim());
+      if (r.mfaRequired) {
+        setNeedCode(true);
+        return;
+      }
+      done(r.user ?? user.trim());
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -36,29 +52,62 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
     }
   };
 
+  /** 確認コードの入力をやめて、パスワードからやり直す */
+  const restart = () => {
+    setNeedCode(false);
+    setCode('');
+    setPassword('');
+    setError('');
+  };
+
   return (
     <form class="login" onSubmit={submit}>
       <h1>{PROFILE.title}</h1>
       <p class="muted">いつ・どこに行ったかを調べる</p>
-      <input
-        type="text"
-        autocomplete="username"
-        autocapitalize="none"
-        spellcheck={false}
-        placeholder="利用者名"
-        value={user}
-        onInput={(e) => setUser(e.currentTarget.value)}
-        autoFocus={!user}
-      />
-      <input
-        type="password"
-        autocomplete="current-password"
-        placeholder="パスワード"
-        value={password}
-        onInput={(e) => setPassword(e.currentTarget.value)}
-        autoFocus={!!user}
-      />
-      <button type="submit" disabled={busy || !user.trim() || !password}>ログイン</button>
+      {needCode ? (
+        <>
+          <p>認証アプリに表示されている 6 桁の確認コードを入力してください。</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autocomplete="one-time-code"
+            autocapitalize="none"
+            spellcheck={false}
+            placeholder="確認コード"
+            aria-label="確認コード"
+            value={code}
+            onInput={(e) => setCode(e.currentTarget.value)}
+            autoFocus
+          />
+          <button type="submit" disabled={busy || !code.trim()}>確認</button>
+          <p class="muted note">アプリを使えないときは、予備のコード（xxxx-xxxx）を入力できます。</p>
+          <button type="button" class="text-btn" onClick={restart}>
+            パスワードの入力に戻る
+          </button>
+        </>
+      ) : (
+        <>
+          <input
+            type="text"
+            autocomplete="username"
+            autocapitalize="none"
+            spellcheck={false}
+            placeholder="利用者名"
+            value={user}
+            onInput={(e) => setUser(e.currentTarget.value)}
+            autoFocus={!user}
+          />
+          <input
+            type="password"
+            autocomplete="current-password"
+            placeholder="パスワード"
+            value={password}
+            onInput={(e) => setPassword(e.currentTarget.value)}
+            autoFocus={!!user}
+          />
+          <button type="submit" disabled={busy || !user.trim() || !password}>ログイン</button>
+        </>
+      )}
       {error && <p class="error">{error}</p>}
       <p class="muted about">
         バージョン {PROFILE.version}
