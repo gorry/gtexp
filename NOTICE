@@ -17,6 +17,11 @@ The built web client (dist/public) includes the following software:
   Licensed under the MIT License
   https://github.com/preactjs/preact
 
+  QR Code Generator for JavaScript (qrcode-generator)
+  Copyright (c) 2009 Kazuhiko Arase
+  Licensed under the MIT License
+  https://github.com/kazuhikoarase/qrcode-generator
+
 ------------------------------------------------------------------------
 Data sources used at run time (not included in this repository)
 ------------------------------------------------------------------------
@@ -34,5 +39,8 @@ attributions below, as their licenses require.
   出典：位置参照情報ダウンロードサービス（国土交通省）
   https://nlftp.mlit.go.jp/isj/
 
-Google, Google Maps, Google Earth and Google Takeout are trademarks of
-Google LLC. This product is not affiliated with or endorsed by Google.
+Google, Google Maps, Google Earth, Google Authenticator and Google Takeout
+are trademarks of Google LLC. This product is not affiliated with or
+endorsed by Google.
+
+QR Code is a registered trademark of DENSO WAVE INCORPORATED.

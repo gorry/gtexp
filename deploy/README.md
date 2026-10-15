@@ -122,6 +122,7 @@ node dist/server.mjs user-add alice     # 利用者を追加する（パスワ�
 |---|---|
 | `node dist/server.mjs user-add <名前>` | 利用者を追加する。名前は英小文字・数字・`_`・`-` で 32 文字まで |
 | `node dist/server.mjs user-passwd <名前>` | パスワードを変更する。その利用者のログイン中の端末はすべてログアウトされる |
+| `node dist/server.mjs user-mfa-reset <名前>` | 2 段階認証を外す。利用者が認証アプリを使えなくなり、予備のコードもないときに使う。設定の `sessionSecret`（または `data/session.key`）を変えると 2 段階認証の鍵を読めなくなるので、そのときも外して、利用者に設定し直してもらう |
 | `node dist/server.mjs user-del <名前>` | 対象ユーザーのログインを無効化する。記録のフォルダーは残るため、不要であれば手動で削除する |
 | `node dist/server.mjs user-list` | 利用者の一覧 |
 
