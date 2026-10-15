@@ -1,7 +1,9 @@
-import { useRef, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import type { MeResponse } from '../../shared/types';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
 import { UserIcon, makeIcon, setIconVersion } from '../userIcon';
+import { MfaCard } from './MfaCard';
 
 /**
  * ユーザー情報：アイコンの設定、データの取り込み（別の画面へのリンク）、パスワードの変更、ログアウト。
@@ -9,6 +11,12 @@ import { UserIcon, makeIcon, setIconVersion } from '../userIcon';
  */
 export function UserView({ user }: { user: string }) {
   usePageTitle('ユーザー情報');
+  // 2 段階認証を使っているか（パスワードの変更でもコードを聞く）
+  const [me, setMe] = useState<MeResponse | null>(null);
+  const loadMe = () => {
+    api.me().then(setMe).catch(() => {});
+  };
+  useEffect(loadMe, []);
   return (
     <div class="page">
       <h2>ユーザー情報</h2>
@@ -20,7 +28,8 @@ export function UserView({ user }: { user: string }) {
           データの取り込みを開く
         </a>
       </section>
-      <PasswordCard />
+      {me && <MfaCard enabled={!!me.mfa} recoveryLeft={me.recoveryLeft ?? 0} onChanged={loadMe} />}
+      <PasswordCard mfa={!!me?.mfa} onChanged={loadMe} />
       <section class="card">
         <h3>ログアウト</h3>
         <p class="muted">この端末でログアウトします。</p>
@@ -104,8 +113,9 @@ function IconCard({ user }: { user: string }) {
   );
 }
 
-function PasswordCard() {
+function PasswordCard({ mfa, onChanged }: { mfa: boolean; onChanged: () => void }) {
   const [current, setCurrent] = useState('');
+  const [code, setCode] = useState('');
   const [next, setNext] = useState('');
   const [again, setAgain] = useState('');
   const [busy, setBusy] = useState(false);
@@ -122,8 +132,10 @@ function PasswordCard() {
     }
     setBusy(true);
     try {
-      await api.changePassword(current, next);
+      await api.changePassword(current, next, code.trim());
       setCurrent('');
+      setCode('');
+      onChanged();
       setNext('');
       setAgain('');
       setMessage('パスワードを変更しました。ほかの端末では、ログアウトされます。');
@@ -141,8 +153,11 @@ function PasswordCard() {
         <input type="password" value={current} autocomplete="current-password" placeholder="今のパスワード" aria-label="今のパスワード" onInput={(e) => setCurrent(e.currentTarget.value)} />
         <input type="password" value={next} autocomplete="new-password" placeholder="新しいパスワード（8 文字以上）" aria-label="新しいパスワード" onInput={(e) => setNext(e.currentTarget.value)} />
         <input type="password" value={again} autocomplete="new-password" placeholder="新しいパスワード（もう一度）" aria-label="新しいパスワード（もう一度）" onInput={(e) => setAgain(e.currentTarget.value)} />
+        {mfa && (
+          <input type="text" inputMode="numeric" autocomplete="one-time-code" value={code} placeholder="確認コード（認証アプリの 6 桁）" aria-label="確認コード" onInput={(e) => setCode(e.currentTarget.value)} />
+        )}
         <div>
-          <button type="submit" disabled={busy || !current || !next || !again}>
+          <button type="submit" disabled={busy || !current || !next || !again || (mfa && !code.trim())}>
             変更
           </button>
         </div>

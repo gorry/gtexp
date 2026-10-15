@@ -1697,3 +1697,38 @@ a.trip-banner:hover {
   font-size: 12px;
   overflow-wrap: anywhere;
 }
+
+/* ---- 2 段階認証（ユーザー情報） ---- */
+.mfa-setup ol {
+  margin: 8px 0;
+  padding-left: 1.4em;
+}
+
+.mfa-qr {
+  width: 200px;
+  max-width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  /* 暗い色の画面でも読み取れるよう、QR コードは白地に黒で出す */
+  background: #fff;
+}
+
+.mfa-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mfa-secret {
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.mfa-codes {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 4px 24px;
+  margin: 8px 0;
+  padding-left: 1.2em;
+  font-size: 15px;
+}
