@@ -58,7 +58,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown, headers: R
 }
 
 /**
- * 大事な操作の前に本人を確かめる。password を渡したらパスワードを、2 段階認証がオンならコード（6 桁か予備のコード）を確かめる。
+ * 大事な操作の前に本人を確かめる。password を渡したらパスワードを、2 段階認証がオンならコード（6 桁かバックアップコード）を確かめる。
  * 間違いはログインの失敗と同じに数え、続いたら断る。401 だと画面がログアウトしたとみなすので、400 で返す
  */
 async function confirmIdentity(config: Config, shared: DatabaseSync, user: string, given: { password?: unknown; code?: unknown }): Promise<void> {
@@ -71,7 +71,7 @@ async function confirmIdentity(config: Config, shared: DatabaseSync, user: strin
   if ('password' in given) {
     const u = getUser(shared, user);
     if (!u || typeof given.password !== 'string' || !verifyPassword(given.password, u.passwordHash)) {
-      await fail('今のパスワードが違います。確認して、もう一度入力してください。');
+      await fail('現在のパスワードが正しくありません。確認してもう一度入力してください。');
     }
   }
   if (mfaEnabled(shared, user) && (typeof given.code !== 'string' || !checkMfaCode(shared, user, given.code, config.sessionSecret))) {
@@ -383,12 +383,12 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     const user = name ? getUser(shared, name) : null;
     if (!listUsers(shared).length) {
       console.error('利用者がいません（node dist/server.mjs user-add で登録してください）');
-      throw new HttpError(500, '利用者が登録されていません。サーバーの管理者に連絡してください。');
+      throw new HttpError(500, 'ユーザーが登録されていません。サーバー管理者に連絡してください。');
     }
     if (!user || typeof password !== 'string' || !verifyPassword(password, user.passwordHash)) {
       loginFailures.push(Date.now());
       await new Promise((r) => setTimeout(r, 1000));
-      throw new HttpError(401, '利用者名かパスワードが違います。確認して、もう一度入力してください。');
+      throw new HttpError(401, 'ユーザー名またはパスワードが正しくありません。');
     }
     if (mfaEnabled(shared, user.name)) {
       // 2 段階認証がオン：ログインの Cookie はまだ渡さず、確認コードを待つ（5 分）
@@ -403,7 +403,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   if (path === '/api/login/mfa' && method === 'POST') {
-    // ログインの 2 段階目：アプリの 6 桁のコードか、予備のコードを確かめる（間違いはログインの失敗と同じに数える）
+    // ログインの 2 段階目：アプリの 6 桁のコードか、バックアップコードを確かめる（間違いはログインの失敗と同じに数える）
     if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度ログインしてください。');
     const name = mfaPendingUser(req, config.sessionSecret, (n) => getUser(shared, n)?.sessionKey ?? null);
     if (!name) throw new HttpError(400, '確認の時間が過ぎました。もう一度、パスワードからログインしてください。');
@@ -490,7 +490,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   if (path === '/api/me/mfa/enable' && method === 'POST') {
-    // アプリの 6 桁が合えば有効にし、予備のコードを 1 回だけ返す。ほかの端末はログアウトさせる
+    // アプリの 6 桁が合えば有効にし、バックアップコードを 1 回だけ返す。ほかの端末はログアウトさせる
     // （2 段階認証なしでログインした端末を残さない）。この端末には新しいログインを渡す
     const { code } = await readJsonBody(req);
     const codes = typeof code === 'string' ? finishMfaSetup(shared, user, code, config.sessionSecret) : null;
@@ -510,7 +510,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     return;
   }
   if (path === '/api/me/mfa/recovery' && method === 'POST') {
-    // 予備のコードを作り直す（前のものは使えなくなる）。コードを確かめる
+    // バックアップコードを再発行する（前のものは使えなくなる）。コードを確かめる
     const { code } = await readJsonBody(req);
     await confirmIdentity(config, shared, user, { code });
     sendJson(res, 200, { recoveryCodes: renewRecoveryCodes(shared, user) });
@@ -551,7 +551,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     try {
       data = await readJsonBody(req, 50_000_000);
     } catch (e) {
-      if (e instanceof HttpError && e.status === 400) throw new HttpError(400, 'ファイルを読み込めませんでした。「書き出す」で保存したファイルを選んでください。');
+      if (e instanceof HttpError && e.status === 400) throw new HttpError(400, 'ファイルを読み込めませんでした。「エクスポート（JSON）」で保存したファイルを選択してください。');
       throw e;
     }
     let counts: { notes: number; bookmarks: number };
@@ -662,7 +662,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     const tags = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map((t) => normalizeTag(String(t))).filter(Boolean))] : []);
     const add = tags(body.add);
     const remove = tags(body.remove);
-    if (!add.length && !remove.length) throw new HttpError(400, '付けるか外すタグを指定してください');
+    if (!add.length && !remove.length) throw new HttpError(400, '追加または解除するタグを指定してください');
     sendJson(res, 200, { changed: bulkTags(db, ids, add, remove) });
     return;
   }
@@ -814,7 +814,7 @@ async function main(): Promise<void> {
       break;
     }
     case 'user-mfa-reset': {
-      // 2 段階認証を外す（アプリを使えなくなり、予備のコードもないとき。sessionSecret を変えたときも）
+      // 2 段階認証を外す（アプリを使えなくなり、バックアップコードもないとき。sessionSecret を変えたときも）
       const name = args[0] ?? '';
       const config = loadConfig();
       const shared = openSharedDb(config.dataDir);
@@ -894,7 +894,7 @@ async function main(): Promise<void> {
       const user = takeUser(openSharedDb(config.dataDir), args);
       if (!args.length) throw new Error('使い方: import-takeout [--user 名前] <Takeout の zip かフォルダー ...>');
       console.log(importTakeoutZips(openUserDb(config.dataDir, user), join(userDir(config.dataDir, user), 'takeout'), args));
-      console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
+      console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、「このアプリについて」画面の「今すぐ照合する」）に行われます。');
       break;
     }
     case 'import-swarm': {
@@ -903,7 +903,7 @@ async function main(): Promise<void> {
       const user = takeUser(openSharedDb(config.dataDir), args);
       if (!args[0]) throw new Error('使い方: import-swarm [--user 名前] <Swarm の書き出しの zip>');
       console.log(importSwarmZip(openUserDb(config.dataDir, user), join(userDir(config.dataDir, user), 'swarm'), args[0]));
-      console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
+      console.log('地点への割り当ては、次にタイムラインを取り込んだとき（か、「このアプリについて」画面の「今すぐ照合する」）に行われます。');
       break;
     }
     case 'import-osm-poi': {
@@ -911,7 +911,7 @@ async function main(): Promise<void> {
       if (!args[0]) throw new Error('使い方: import-osm-poi <施設の geojsonseq ファイル>');
       const config = loadConfig();
       console.log(await importOsmPois(openSharedDb(config.dataDir), args[0]));
-      console.log('地点への施設名の割り当ては、次にタイムラインを取り込んだとき（か、取り込み画面の「今すぐ調べる」）に行われます。');
+      console.log('地点への施設名の割り当ては、次にタイムラインを取り込んだとき（か、「このアプリについて」画面の「今すぐ照合する」）に行われます。');
       break;
     }
     case 'osm-poi-keys': {
@@ -943,7 +943,7 @@ ${PROFILE.copyright}
   check                  設置を確かめる（サービスの定義・ビルド・画面のファイル・設定・持ち主・動いているサーバーのバージョンなど）
   user-add <名前>        利用者を足す（パスワードを聞く）。名前は英小文字・数字・_・- で 32 文字まで
   user-passwd <名前>     パスワードを変える（その利用者のログイン中の端末はすべてログアウトされる）
-  user-mfa-reset <名前>  2 段階認証を外す（アプリを使えなくなり、予備のコードもないとき）
+  user-mfa-reset <名前>  2 段階認証を外す（アプリを使えなくなり、バックアップコードもないとき）
   user-del <名前>        利用者を消す（ログインできなくするだけ。記録のフォルダー data/users/<名前> は残す）
   user-list              利用者の一覧
   import [--user 名前] <file>

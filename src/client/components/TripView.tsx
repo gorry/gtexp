@@ -72,7 +72,7 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
         <ExportLinks source="search" params={exportParams('activities')} count={t.activityCount} label="移動" />
 
         <h3 class="section-title">行き先</h3>
-        <p class="muted note">地域を指す場所なので、名前は Google マップで確認して付けてください。</p>
+        <p class="muted note">地域を表す地点のため、Google マップで確認して任意の名前を設定できます。</p>
         <ul class="destinations">
           {t.destinationPlaces.map((d, i) => (
             <DestinationItem d={d} i={i} onNote={updateDestination} />
@@ -138,7 +138,7 @@ function DestinationItem({ d, i, onNote }: { d: TripDestination; i: number; onNo
       <span class="visit-actions inline">
         <a href={googleMapsPlaceUrl(d.placeId)} target="_blank" rel="noopener">Google マップ</a>
         <button type="button" class="link-btn" onClick={() => setEditing(!editing)}>
-          {d.note?.name ? '名前を変える' : '名前を付ける'}
+          {d.note?.name ? '名前を編集' : '名前を設定'}
         </button>
       </span>
       {editing && (
@@ -214,7 +214,7 @@ function TripMap({ config, visits, path, selected, onSelect }: {
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
+        <p>Google Maps API キーが設定されていないため、地図を表示できません。</p>
       </div>
     );
   }

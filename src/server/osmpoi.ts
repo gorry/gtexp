@@ -12,7 +12,7 @@ import { buildPoiKeys, poiCounts } from './lists';
 // 取り出した GeoJSON（1行1施設、osmium export -f geojsonseq）を osm_pois テーブルに入れ、手元で探す。
 // 作業は位置参照情報と同じく2つに分かれる：
 // 1. データを入れる（import-osm-poi。データを新しくしたいときだけ）。入れた日時を kv に記録する
-// 2. 地点に割り当てる（タイムラインの取り込みのたびと「今すぐ調べる」。areas.ts の assignForImport から呼ぶ）
+// 2. 地点に割り当てる（タイムラインの取り込みのたびと「今すぐ照合する」。areas.ts の assignForImport から呼ぶ）
 // 出典：© OpenStreetMap contributors（ODbL）
 
 const SOURCE = 'osm-poi';

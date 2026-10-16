@@ -50,7 +50,7 @@ const isoOr = (v: unknown, fallback: string) => (typeof v === 'string' && !Numbe
 /** 読み込む。形が違うときは Error（文言はそのまま画面に出す）。読み込んだ数を返す */
 export function importUserData(db: DatabaseSync, data: any): { notes: number; bookmarks: number } {
   if (data?.format !== USERDATA_FORMAT || !Array.isArray(data.notes) || !Array.isArray(data.bookmarks)) {
-    throw new Error('gtexp で書き出した名前・メモ・タグとブックマークのファイルではありません。「書き出す」で保存したファイルを選んでください。');
+    throw new Error('ユーザーデータのバックアップファイルではありません。「エクスポート（JSON）」で保存したファイルを選択してください。');
   }
   const now = new Date().toISOString();
   const upsertNote = db.prepare(

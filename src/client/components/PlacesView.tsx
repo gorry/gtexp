@@ -50,9 +50,9 @@ function filtersToQuery(f: Filters): URLSearchParams {
 }
 
 const SORT_LABELS: Record<PlaceSort, string> = {
-  count: '回数が多い順',
-  last: '最近行った順',
-  first: '初めて行った順',
+  count: '訪問回数が多い順',
+  last: '最終訪問が新しい順',
+  first: '初回訪問が古い順',
   duration: '滞在時間が長い順',
 };
 
@@ -60,8 +60,8 @@ const KIND_LABELS: Record<PlaceKind, string> = {
   '': 'すべて',
   home: '自宅',
   work: '職場',
-  named: '名前を付けた場所',
-  unnamed: '名前のない場所',
+  named: '名前登録済み',
+  unnamed: '名前未設定',
 };
 
 /** ピンの色。まとめてタグ付けのときは選んでいる場所を青、外した場所を灰色に。それ以外は自宅・職場などの色 */
@@ -171,13 +171,13 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
           <PeriodPicker from={filters.from} to={filters.to} onChange={(from, to) => set({ from, to })} />
           <label class="check">
             <input type="checkbox" checked={area} onChange={(e) => set({ area: e.currentTarget.checked })} disabled={!config.mapsApiKey || mapFailed} />
-            地図に見えている範囲だけ
+            地図の表示範囲内のみ
           </label>
         </div>
 
         <p class="muted result-count">
           {loading && items.length === 0 ? '探しています…' : `${total.toLocaleString()} か所`}
-          {total > MAX_PINS && items.length > 0 && `（地図には上位 ${Math.min(items.length, MAX_PINS)} か所）`}
+          {total > MAX_PINS && items.length > 0 && `（地図表示は上位 ${Math.min(items.length, MAX_PINS)} か所）`}
         </p>
         {error && <p class="error">{error}</p>}
         {total > 0 && <ExportLinks source="places" params={exportParams()} count={total} />}
@@ -427,7 +427,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
+        <p>Google Maps API キーが設定されていないため、地図を表示できません。</p>
       </div>
     );
   }

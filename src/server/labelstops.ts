@@ -23,7 +23,7 @@ import { rebuildPlaces } from './db';
 // - 滞在先：ラベルから takeoutLabelM 以内に本当の滞在先があればその場所、なければラベルごとの場所
 //   （placeId は `label:緯度,経度`）。種類は ALIASED_LOCATION（Google でもラベルを付けた場所の種類）
 //
-// 取り込みのたびと「今すぐ調べる」で全部を作り直す（areas.ts の runAssign の最初）。
+// 取り込みのたびと「今すぐ照合する」で全部を作り直す（areas.ts の runAssign の最初）。
 
 const LEAVE_M = 200;
 const MAX_GAP_MS = 12 * 3600_000;

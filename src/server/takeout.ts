@@ -18,7 +18,7 @@ import { distM, getKv, loadedKey, markChecked, setKv, type Target } from './labe
 // 作業は位置参照情報と同じく2つに分かれる：
 // 1. データを入れる（Takeout を書き出し直したときだけ。画面から zip を送るか、管理者が import-takeout で）。zip は残さず、
 //    使うファイルだけを取り出して利用者のフォルダーの takeout/ に置き（種類ごとに置き換え）、そこから DB に入れ直す
-// 2. 地点に割り当てる（タイムラインの取り込みのたびと「今すぐ調べる」。areas.ts の assignForImport から呼ぶ）
+// 2. 地点に割り当てる（タイムラインの取り込みのたびと「今すぐ照合する」。areas.ts の assignForImport から呼ぶ）
 //
 // 取得方法：
 // - takeout-label（地点名）：ラベルを付けた場所。labelM（既定 30m）以内でいちばん近いもの

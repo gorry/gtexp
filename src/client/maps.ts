@@ -26,7 +26,7 @@ export function loadMaps(key: string): Promise<void> {
     script.async = true;
     script.onerror = () => {
       loading = null;
-      reject(new Error('地図を読み込めませんでした。通信の状態を確認して、画面を読み込み直してください。'));
+      reject(new Error('地図を読み込めませんでした。通信環境を確認してページを再読み込みしてください。'));
     };
     document.head.appendChild(script);
   });
@@ -177,8 +177,8 @@ export function addLocateControl(map: google.maps.Map): () => void {
     if (!pressed && e.code !== e.PERMISSION_DENIED) return;
     show(
       e.code === e.PERMISSION_DENIED
-        ? '現在地を使えません。ブラウザの設定で、このサイトに位置情報の利用を許可してください。'
-        : '現在地を取得できませんでした。少し待ってから、もう一度押してください。',
+        ? '現在地を利用できません。ブラウザの設定でこのサイトへの位置情報の許可を確認してください。'
+        : '現在地を取得できませんでした。しばらく待ってから再度お試しください。',
     );
     if (e.code === e.PERMISSION_DENIED && watchId != null) {
       navigator.geolocation.clearWatch(watchId);

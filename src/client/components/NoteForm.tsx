@@ -50,7 +50,7 @@ export function NoteForm({ placeId, note, onSaved, onCancel }: Props) {
       <div class="note-form-buttons">
         <button type="submit" disabled={saving}>保存</button>
         <button type="button" class="text-btn" onClick={onCancel}>キャンセル</button>
-        <span class="muted">同じ場所のすべての記録に付きます</span>
+        <span class="muted">この場所のすべての訪問履歴に反映されます</span>
       </div>
       {error && <p class="error">{error}</p>}
     </form>
@@ -73,7 +73,7 @@ export function TagList({ tags }: { tags: string[] }) {
 /** 元データにない、経路から推定した立ち寄り */
 export function EstimatedChip() {
   return (
-    <span class="chip" title="タイムラインには滞在として記録されていませんが、ラベルを付けた場所の近くを通ったので、立ち寄ったと推定しました">
+    <span class="chip" title="移動経路とラベル付きの場所から推定された立ち寄り履歴です">
       推定
     </span>
   );

@@ -141,7 +141,7 @@ export function BulkTags({ params, onClose, onChanged, onItems, onFocus }: Props
     try {
       const added = toAdd.length ? (await api.bulkTags({ placeIds: toAdd.map((p) => p.placeId), add: [tag] })).changed : [];
       const removed = toRemove.length ? (await api.bulkTags({ placeIds: toRemove.map((p) => p.placeId), remove: [tag] })).changed : [];
-      const parts = [added.length && `${added.length.toLocaleString()} か所に付けました`, removed.length && `${removed.length.toLocaleString()} か所から外しました`].filter(Boolean);
+      const parts = [added.length && `${added.length.toLocaleString()} か所に追加しました`, removed.length && `${removed.length.toLocaleString()} か所から解除しました`].filter(Boolean);
       setMessage(`${hashtag(tag)} を${parts.join('・') || '変更しませんでした'}`);
       setUndo(added.length || removed.length ? { tag, added, removed } : null);
       // 反映したので、変えたチェックは捨てて DB の状態を読み直す
@@ -191,16 +191,16 @@ export function BulkTags({ params, onClose, onChanged, onItems, onFocus }: Props
       )}
       <p class="muted note">
         {tag
-          ? `チェックが入っている場所に ${hashtag(tag)} が付いた状態になります。チェックを変えて「決定」を押してください。`
-          : 'タグを入れると、いまそのタグが付いている場所にチェックが入ります（初めて使うタグなら、どこにも入りません）。'}
+          ? `チェックした場所に ${hashtag(tag)} が設定されます。選択を変更して「適用」を押してください。`
+          : 'タグを入力すると、現在そのタグが付いている場所にチェックが入ります。'}
       </p>
       <div class="bulk-actions">
-        <button type="button" class="text-btn" disabled={!ready} onClick={() => setCheck(items, true)}>すべて選ぶ</button>
-        <button type="button" class="text-btn" disabled={!ready} onClick={() => setCheck(items, false)}>すべて外す</button>
+        <button type="button" class="text-btn" disabled={!ready} onClick={() => setCheck(items, true)}>すべて選択</button>
+        <button type="button" class="text-btn" disabled={!ready} onClick={() => setCheck(items, false)}>すべて解除</button>
         <button type="submit" disabled={busy || !ready || !changes} onClick={apply}>
           {changes
-            ? `決定（${[toAdd.length && `付ける ${toAdd.length.toLocaleString()}`, toRemove.length && `外す ${toRemove.length.toLocaleString()}`].filter(Boolean).join('・')}）`
-            : '決定'}
+            ? `適用（${[toAdd.length && `追加 ${toAdd.length.toLocaleString()}`, toRemove.length && `解除 ${toRemove.length.toLocaleString()}`].filter(Boolean).join('・')}）`
+            : '適用'}
         </button>
       </div>
       {message && (
@@ -218,13 +218,13 @@ export function BulkTags({ params, onClose, onChanged, onItems, onFocus }: Props
       <ul class="bulk-list">
         {items.map((p) => {
           const on = isChecked(p);
-          const change = on !== initial(p) ? (on ? '付ける' : '外す') : '';
+          const change = on !== initial(p) ? (on ? '追加' : '解除') : '';
           return (
             // 行全体を押すと地図をその場所に寄せる。チェックボックスと地点名（label）だけがチェックの切り替え
             <li
               id={`bulk-${p.placeId}`}
               class={`${focused === p.placeId ? 'focused' : ''}${tag ? '' : ' disabled'}`}
-              title="押すと地図でこの場所を拡大します"
+              title="クリックで地図をこの場所に移動"
               onClick={() => {
                 setFocused(p.placeId);
                 onFocus(p.placeId);
@@ -235,7 +235,7 @@ export function BulkTags({ params, onClose, onChanged, onItems, onFocus }: Props
                   <input type="checkbox" checked={!!tag && on} disabled={!ready} onChange={() => setCheck([p], !on)} />
                   <span class="bulk-name">{visitName(p)}</span>
                 </label>
-                {change && <span class={`chip change-${change === '付ける' ? 'add' : 'remove'}`}>{change}</span>}
+                {change && <span class={`chip change-${change === '追加' ? 'add' : 'remove'}`}>{change}</span>}
                 {tag && p.tagState === 'list' && <span class="chip">保存リストで {hashtag(tag)}</span>}
               </div>
               <div class="muted bulk-meta">

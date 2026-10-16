@@ -6,14 +6,14 @@ import type { DatabaseSync } from 'node:sqlite';
 // （DB のファイルだけが漏れても、コードを作れないように）。sessionSecret を変えると鍵を読めなくなるので、
 // そのときは管理者が user-mfa-reset で外し、利用者が設定し直す。
 // 同じコードを 2 回使えないよう、最後に使った時刻の区切り（30 秒ごとの番号）を覚える。
-// アプリを使えなくなったときのために、1 回ずつ使える予備のコードを 10 個渡す（ハッシュだけを持つ）
+// アプリを使えなくなったときのために、1 回ずつ使えるバックアップコードを 10 個渡す（ハッシュだけを持つ）
 
 const PERIOD_SEC = 30;
 const DIGITS = 6;
 /** 端末とサーバーの時計のずれをどこまで許すか（前後の区切りの数） */
 const WINDOW = 1;
 const RECOVERY_COUNT = 10;
-/** 予備のコードの文字（見間違えやすい 0・1・o・l・i を除く） */
+/** バックアップコードの文字（見間違えやすい 0・1・o・l・i を除く） */
 const RECOVERY_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
 
 // ---- TOTP ----
@@ -108,11 +108,11 @@ export function decryptSecret(stored: string, sessionSecret: string): Buffer | n
   }
 }
 
-// ---- 予備のコード ----
+// ---- バックアップコード ----
 
 const hashRecovery = (code: string) => createHash('sha256').update(code.toLowerCase().replace(/[^a-z0-9]/g, '')).digest('hex');
 
-/** 予備のコードを作る（xxxx-xxxx の形。渡すのはこの 1 回だけ） */
+/** バックアップコードを作る（xxxx-xxxx の形。渡すのはこの 1 回だけ） */
 export function newRecoveryCodes(): { codes: string[]; hashes: string[] } {
   const codes = Array.from({ length: RECOVERY_COUNT }, () => {
     const b = randomBytes(8);
@@ -158,7 +158,7 @@ export function startMfaSetup(shared: DatabaseSync, name: string, sessionSecret:
   return base32Encode(secret);
 }
 
-/** 設定の途中の鍵で作ったコードが合えば有効にし、予備のコードを返す。合わなければ null */
+/** 設定の途中の鍵で作ったコードが合えば有効にし、バックアップコードを返す。合わなければ null */
 export function finishMfaSetup(shared: DatabaseSync, name: string, code: string, sessionSecret: string): string[] | null {
   const m = getMfa(shared, name);
   const secret = m.pending ? decryptSecret(m.pending, sessionSecret) : null;
@@ -170,8 +170,8 @@ export function finishMfaSetup(shared: DatabaseSync, name: string, code: string,
 }
 
 /**
- * 有効にした 2 段階認証のコード（6 桁）か、予備のコードを確かめる。合えば使い済みにして true。
- * 予備のコードは 1 回だけ使える
+ * 有効にした 2 段階認証のコード（6 桁）か、バックアップコードを確かめる。合えば使い済みにして true。
+ * バックアップコードは 1 回だけ使える
  */
 export function checkMfaCode(shared: DatabaseSync, name: string, code: string, sessionSecret: string): boolean {
   const m = getMfa(shared, name);
@@ -192,7 +192,7 @@ export function checkMfaCode(shared: DatabaseSync, name: string, code: string, s
   return false;
 }
 
-/** 予備のコードを作り直す（前のものは使えなくなる） */
+/** バックアップコードを再発行する（前のものは使えなくなる） */
 export function renewRecoveryCodes(shared: DatabaseSync, name: string): string[] {
   const { codes, hashes } = newRecoveryCodes();
   saveMfa(shared, name, { ...getMfa(shared, name), recovery: hashes });
@@ -201,7 +201,7 @@ export function renewRecoveryCodes(shared: DatabaseSync, name: string): string[]
 
 export const recoveryLeft = (shared: DatabaseSync, name: string) => getMfa(shared, name).recovery.length;
 
-/** 無効にする（鍵も予備のコードも消す）。管理者の user-mfa-reset もこれ */
+/** 無効にする（鍵もバックアップコードも消す）。管理者の user-mfa-reset もこれ */
 export function disableMfa(shared: DatabaseSync, name: string): boolean {
   return shared.prepare('DELETE FROM user_mfa WHERE name = ?').run(name).changes > 0;
 }

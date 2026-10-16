@@ -63,7 +63,7 @@ export function DayView({ date, config, onDate }: Props) {
           <input type="date" value={date} onChange={(e) => e.currentTarget.value && onDate(e.currentTarget.value)} />
           <button type="button" class="icon-btn" onClick={() => onDate(addDays(date, 1))} title="次の日">›</button>
           <button type="button" class="text-btn" onClick={() => onDate(todayIn(config.tzOffsetMinutes))}>今日</button>
-          <button type="button" class="text-btn" onClick={() => setShowCal(!showCal)}>{showCal ? '暦を隠す' : '暦'}</button>
+          <button type="button" class="text-btn" onClick={() => setShowCal(!showCal)}>{showCal ? 'カレンダーを閉じる' : 'カレンダー'}</button>
         </div>
         {showCal && <Calendar selected={date} onPick={onDate} />}
 
@@ -132,7 +132,7 @@ function VisitItem({ v, no, date, selected, onSelect, onNote }: {
   const nested = v.hierarchyLevel > 0;
   return (
     <li id={`visit-${v.id}`} class={`visit${nested ? ' nested' : ''}${selected ? ' selected' : ''}`} onClick={onSelect}>
-      <span class={`badge type-${v.semanticType}`} title={nested ? '同じ時間帯の入れ子の場所' : undefined}>
+      <span class={`badge type-${v.semanticType}`} title={nested ? '施設内の滞在先' : undefined}>
         {nested ? '' : no}
       </span>
       <div class="visit-body">
@@ -156,7 +156,7 @@ function VisitItem({ v, no, date, selected, onSelect, onNote }: {
           <a href={googleMapsUrl(v.lat, v.lng, v.placeId)} target="_blank" rel="noopener">Google マップ</a>
           <a href={googleEarthUrl(v.lat, v.lng)} target="_blank" rel="noopener">Google Earth</a>
           <button type="button" class="link-btn" onClick={() => setEditing(!editing)}>
-            {v.note?.name ? '名前を変える' : '名前を付ける'}
+            {v.note?.name ? '名前・メモを編集' : '名前・メモを設定'}
           </button>
         </div>
         {editing && (

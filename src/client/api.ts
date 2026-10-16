@@ -42,7 +42,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     if (res.status === 401 && path !== '/api/login') onUnauthorized();
-    throw new ApiError(res.status, data.error ?? 'エラーが発生しました。時間をおいて、もう一度試してください。');
+    throw new ApiError(res.status, data.error ?? 'エラーが発生しました。しばらく待ってから再度お試しください。');
   }
   return data as T;
 }
@@ -51,11 +51,11 @@ export const api = {
   me: () => request<MeResponse>('GET', '/api/me'),
   login: (user: string, password: string) => request<MeResponse>('POST', '/api/login', { user, password }),
   logout: () => request<MeResponse>('POST', '/api/logout'),
-  /** ログインの 2 段階目（アプリの 6 桁か予備のコード） */
+  /** ログインの 2 段階目（アプリの 6 桁かバックアップコード） */
   loginMfa: (code: string) => request<MeResponse>('POST', '/api/login/mfa', { code }),
   /** 2 段階認証の設定を始める（アプリに登録する URI と鍵） */
   mfaSetup: () => request<{ uri: string; secret: string }>('POST', '/api/me/mfa/setup'),
-  /** アプリの 6 桁が合えば有効にする（予備のコードが返る） */
+  /** アプリの 6 桁が合えば有効にする（バックアップコードが返る） */
   mfaEnable: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/api/me/mfa/enable', { code }),
   mfaDisable: (password: string, code: string) => request<{ ok: boolean }>('POST', '/api/me/mfa/disable', { password, code }),
   mfaRecovery: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/api/me/mfa/recovery', { code }),
@@ -65,7 +65,7 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401) onUnauthorized();
-      throw new ApiError(res.status, data.error ?? 'アイコンを保存できませんでした。もう一度試してください。');
+      throw new ApiError(res.status, data.error ?? 'アイコンを保存できませんでした。再度お試しください。');
     }
     return data;
   },
@@ -83,7 +83,7 @@ export const api = {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401) onUnauthorized();
-      throw new ApiError(res.status, data.error ?? 'ファイルを読み込めませんでした。もう一度試してください。');
+      throw new ApiError(res.status, data.error ?? 'ファイルを読み込めませんでした。再度お試しください。');
     }
     return data;
   },
@@ -169,10 +169,10 @@ function sendWithProgress<T>(url: string, body: XMLHttpRequestBodyInit, headers:
       if (xhr.status === 200) resolve(data);
       else {
         if (xhr.status === 401) onUnauthorized();
-        reject(new ApiError(xhr.status, data.error ?? 'ファイルを送信できませんでした。もう一度送信してください。'));
+        reject(new ApiError(xhr.status, data.error ?? 'ファイルを送信できませんでした。再度お試しください。'));
       }
     };
-    xhr.onerror = () => reject(new ApiError(0, 'サーバーに接続できませんでした。通信の状態を確認して、もう一度試してください。'));
+    xhr.onerror = () => reject(new ApiError(0, 'サーバーに接続できませんでした。通信環境を確認して再度お試しください。'));
     xhr.send(body);
   });
 }

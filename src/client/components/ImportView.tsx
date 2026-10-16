@@ -36,7 +36,7 @@ const IMPORT_KIND_LABELS: Record<ImportRecord['kind'], string> = {
   timeline: 'タイムライン',
   takeout: 'Google Takeout',
   swarm: 'Foursquare Swarm',
-  userdata: '名前・メモ・タグとブックマーク',
+  userdata: 'ユーザーデータ（名前・メモ・タグ・ブックマーク）',
 };
 
 /** 取り込みの履歴の「内容」 */
@@ -158,10 +158,10 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
       <h2>データの取り込み</h2>
 
       <section class="card">
-        <h3>ファイルを送る</h3>
-        <p class="muted">タイムラインのエクスポート（.json / .gz）と、Google Takeout・Foursquare Swarm の書き出し（.zip）、この画面で書き出した名前・メモ・タグとブックマーク（.json）を送れます。まとめて選んでもかまいません。</p>
+        <h3>ファイルのインポート</h3>
+        <p class="muted">タイムラインのエクスポート（.json / .gz）、Google Takeout・Foursquare Swarm のアーカイブ（.zip）、エクスポートしたユーザーデータ（.json）を取り込めます。複数ファイルの同時選択も可能です。</p>
         <label class={`file-button${progress ? ' disabled' : ''}`}>
-          ファイルを選ぶ
+          ファイルを選択
           <input
             type="file"
             multiple
@@ -193,8 +193,8 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <p class="success">
             {takeoutResult.takeout && (
               <>
-                Google Takeout を取り込みました（{takeoutResult.takeout.replaced.map((k) => TAKEOUT_KIND_LABELS[k]).join('・')}を置き換え
-                {takeoutResult.takeout.replaced.length < 5 && '。zip に入っていなかった種類は前のまま'}）
+                Google Takeout を取り込みました（{takeoutResult.takeout.replaced.map((k) => TAKEOUT_KIND_LABELS[k]).join('・')}を更新
+                {takeoutResult.takeout.replaced.length < 5 && '。含まれていない項目は既存のデータを維持'}）
                 <br />
                 保存した場所 {takeoutResult.takeout.saved.toLocaleString()} 件・ラベルを付けた場所 {takeoutResult.takeout.labeled.toLocaleString()} 件・
                 保存リスト {takeoutResult.takeout.lists.length} 個（{takeoutResult.takeout.listEntries.toLocaleString()} 件）・クチコミ {takeoutResult.takeout.reviews.toLocaleString()} 件・
@@ -218,7 +218,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
         {userDataResult && <p class="success">{userDataResult}</p>}
         {error && <p class="error">{error}</p>}
         <details class="help">
-          <summary>タイムラインのエクスポートのしかた（Android）</summary>
+          <summary>タイムラインのエクスポート手順（Android）</summary>
           <ol>
             <li>端末の「設定」→「位置情報」→「位置情報サービス」→「タイムライン」を開きます</li>
             <li>「タイムライン データをエクスポート」でファイルを保存します</li>
@@ -230,7 +230,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           </p>
         </details>
         <details class="help">
-          <summary>Google Takeout の書き出しかた</summary>
+          <summary>Google Takeout のエクスポート手順</summary>
           <p class="muted">Google マップで保存した場所・ラベル・クチコミを書いた店・マイマップの地点の名前を、地点名として使えます。保存リストとマイマップは「保存リスト」のタブでも見られます。</p>
           <ol>
             <li>
@@ -243,27 +243,23 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
                 <li>マイマップ</li>
               </ul>
             </li>
-            <li>この画面の「ファイルを選ぶ」で zip を送ります。複数の zip に分かれているときは、全部を一度に選びます（別々に送ってもかまいません）</li>
+            <li>この画面の「ファイルを選択」から zip を取り込みます。複数の zip に分かれている場合は、まとめて選択できます（別々に送ってもかまいません）</li>
           </ol>
           <p class="muted">
-            zip に入っていた種類（保存した場所・ラベルを付けた場所・保存リスト・クチコミ・マイマップ）ごとに、前に入れたデータを置き換えます（zip そのものはサーバーに残しません）。保存した場所は、滞在先と同じ場所（2m 以内）か、
-            同じ場所がなければ 30m 以内でいちばん近い滞在先 1 か所の地点名にします。ラベルを付けた場所は 30m 以内です。
-            また、経路がラベルを付けた場所の 50m 以内に来た時間を、短くても「立ち寄り」として滞在に加えます（「推定」の印が付きます。自宅・職場の近くは除きます）。クチコミとマイマップの地点は、それぞれいちばん近い滞在先 1 か所（クチコミは 30m、マイマップは 30m 以内）に付けます。
+            zip に含まれる項目（保存した場所・ラベル・保存リスト・クチコミ・マイマップ）ごとに既存データを更新します。取り込んだ地点データをもとに、近くの滞在先へ自動的に地点名や住所を割り当てます。また、移動経路がラベル付きの場所の近くを通過した場合は、短時間でも「立ち寄り（推定）」として滞在履歴に補完します（自宅・職場の周辺を除く）。
           </p>
         </details>
         <details class="help">
-          <summary>Foursquare Swarm の書き出しかた</summary>
+          <summary>Foursquare Swarm のエクスポート手順</summary>
           <p class="muted">Swarm でチェックインした店の名前を、地点名として使えます。</p>
           <ol>
             <li>
               Foursquare のアカウントの設定から、データのエクスポートを申し込みます。届いた zip をダウンロードします
             </li>
-            <li>この画面の「ファイルを選ぶ」で zip を送ります（Takeout の zip と一緒に選んでもかまいません）</li>
+            <li>この画面の「ファイルを選択」から zip を取り込みます（Takeout の zip と同時に選択してもかまいません）</li>
           </ol>
           <p class="muted">
-            使うのはチェックインだけです（zip そのものはサーバーに残さず、毎回全部を置き換えます）。チェックインした時刻にいた滞在先を探し、
-            その場所でいちばん多くチェックインした店の名前を付けます。同じ時刻の滞在先が複数あれば、チェックインした位置にいちばん近いもの（300m 以内）です。
-            時刻の合う滞在先がなければ、前後 10 分の滞在先（150m 以内）から探します。
+            チェックイン履歴のみを使用し、取り込みのたびに既存データを更新します。チェックインの日時と位置から対応する滞在先を照合し、最も多くチェックインした店舗名を地点名として割り当てます。
           </p>
         </details>
       </section>
@@ -284,7 +280,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           {summary.visits > 0 && (
             <DeleteData
               kind="timeline"
-              note="タイムラインのデータ（滞在・移動・経路・旅行）と取り込みの履歴、場所に付いた住所・地点名を削除します。自分で付けた名前・メモ・タグとブックマーク、OpenStreetMap から取得した住所は残ります。元に戻すには、もう一度ファイルを送ってください。"
+              note="タイムラインのデータ（滞在・移動・経路・旅行）、インポート履歴、および自動付与された住所・地点名を削除します。登録した名前・メモ・タグ・ブックマーク、および OpenStreetMap から取得済みの住所は保持されます。復元するには再度ファイルをインポートしてください。"
               onDeleted={afterDelete}
             />
           )}
@@ -309,7 +305,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
               <li>
                 保存した場所 {summary.takeout.saved.toLocaleString()} 件・ラベルを付けた場所 {summary.takeout.labeled.toLocaleString()} 件・保存リスト {summary.takeout.listEntries.toLocaleString()} 件・
                 クチコミ {summary.takeout.reviews.toLocaleString()} 件・マイマップ {summary.takeout.mymaps} 個（地点 {summary.takeout.mymapPoints.toLocaleString()} か所）
-                （{new Date(summary.takeout.loadedAt).toLocaleDateString()} に入れたデータ）
+                （{new Date(summary.takeout.loadedAt).toLocaleDateString()} 取り込み）
               </li>
               <li>
                 名前が付いた地点：保存した場所 {summary.takeout.savedPlaces.toLocaleString()} か所・ラベル {summary.takeout.labelPlaces.toLocaleString()} か所・
@@ -318,7 +314,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
               <li>ラベルを付けた場所への立ち寄り（経路から推定した滞在）：{summary.takeout.labelStops.toLocaleString()} 件</li>
             </ul>
           ) : (
-            <p>まだ入れていません。上の「ファイルを送る」で Takeout の zip を送ると、Google マップで保存した場所やラベルの名前を地点名として使えます。</p>
+            <p>未取り込みです。上の「ファイルのインポート」から Takeout の zip を取り込むと、Google マップの保存済みスポットやラベル名を地点名として利用できます。</p>
           )}
           {summary.takeout.loadedAt && (
             <DeleteData
@@ -337,12 +333,12 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             <ul class="stats">
               <li>
                 チェックイン {summary.swarm.checkins.toLocaleString()} 件（店 {summary.swarm.venues.toLocaleString()} か所）
-                （{new Date(summary.swarm.loadedAt).toLocaleDateString()} に入れたデータ）
+                （{new Date(summary.swarm.loadedAt).toLocaleDateString()} 取り込み）
               </li>
               <li>店の名前が付いた地点：{summary.swarm.places.toLocaleString()} か所</li>
             </ul>
           ) : (
-            <p>まだ入れていません。上の「ファイルを送る」で Swarm の書き出しの zip を送ると、チェックインした店の名前を地点名として使えます。</p>
+            <p>未取り込みです。上の「ファイルのインポート」から Swarm のエクスポート zip を取り込むと、チェックインした店舗名を地点名として利用できます。</p>
           )}
           {summary.swarm.loadedAt && (
             <DeleteData kind="swarm" note="Foursquare Swarm から取り込んだチェックインと、そこから付けた店の名前を削除します。元に戻すには、もう一度ファイルを送ってください。" onDeleted={afterDelete} />
@@ -352,10 +348,10 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
 
       {history.length > 0 && (
         <section class="card">
-          <h3>取り込みの履歴</h3>
+          <h3>インポート履歴</h3>
           <table class="history">
             <thead>
-              <tr><th>日時</th><th>取り込んだもの</th><th>内容</th></tr>
+              <tr><th>日時</th><th>種別</th><th>内容</th></tr>
             </thead>
             <tbody>
               {history.slice(0, historyShown).map((h) => (
@@ -426,32 +422,32 @@ function DeleteData({ kind, note, onDeleted }: { kind: 'timeline' | 'takeout' | 
   );
 }
 
-/** 自分で付けた名前・メモ・タグとブックマーク：書き出す（JSON）・削除する（読み込むときは「ファイルを送る」で送る） */
+/** ユーザーデータ（名前・メモ・タグ・ブックマーク）：エクスポート（JSON）・削除する（復元するときは「ファイルのインポート」で送る） */
 function UserDataCard({ status, onChanged }: { status: { notes: number; bookmarks: number }; onChanged: () => void }) {
   const empty = !status.notes && !status.bookmarks;
   return (
     <section class="card">
-      <h3>自分で付けた名前・メモ・タグとブックマーク</h3>
+      <h3>ユーザーデータ（名前・メモ・タグ・ブックマーク）</h3>
       <ul class="stats">
         <li>名前・メモ・タグを付けた場所 {status.notes.toLocaleString()} か所</li>
         <li>ブックマーク {status.bookmarks.toLocaleString()} 件</li>
       </ul>
       <div class="visit-actions">
         {empty ? (
-          <span class="file-button disabled">書き出す（JSON）</span>
+          <span class="file-button disabled">エクスポート（JSON）</span>
         ) : (
           <a class="file-button" href="/api/userdata" download>
-            書き出す（JSON）
+            エクスポート（JSON）
           </a>
         )}
       </div>
       <p class="muted note">
-        書き出したファイルは、ほかの利用者やサーバーに移すときや、控えとして使えます。上の「ファイルを送る」で送ると読み込み、今あるものに足し合わせます（同じ場所の名前・メモ・タグと、同じ画面のブックマークの名前は、ファイルの内容に置き換えます）。
+        エクスポートしたファイルは、バックアップや別環境への移行に利用できます。上の「ファイルのインポート」から読み込むと既存データに統合されます（同一地点の名前・メモ・タグや同一画面のブックマーク名は上書きされます）。
       </p>
       {!empty && (
         <DeleteData
           kind="userdata"
-          note="自分で付けた名前・メモ・タグと、ブックマークをすべて削除します。先に「書き出す」で保存しておくと、あとで「ファイルを送る」で送れば戻せます。"
+          note="登録した名前・メモ・タグとブックマークをすべて削除します。事前に「エクスポート（JSON）」で保存しておくと、あとから再インポートして復元できます。"
           onDeleted={onChanged}
         />
       )}

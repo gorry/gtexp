@@ -40,7 +40,7 @@ export function BookmarkButton() {
     setOpen(true);
   };
 
-  // OK：☆ なら足す、★ なら外す
+  // 追加・解除：☆ なら足す、★ なら外す
   const ok = async (e: Event) => {
     e.preventDefault();
     setBusy(true);
@@ -61,8 +61,8 @@ export function BookmarkButton() {
       <button
         type="button"
         class={`header-menu-btn bookmark-btn${mark ? ' on' : ''}`}
-        aria-label={mark ? 'ブックマーク済み' : 'この画面をブックマークに足す'}
-        title={mark ? 'ブックマーク済み' : 'この画面をブックマークに足す'}
+        aria-label={mark ? 'ブックマーク済み' : 'この画面をブックマークに追加'}
+        title={mark ? 'ブックマーク済み' : 'この画面をブックマークに追加'}
         aria-expanded={open}
         disabled={!items}
         onClick={onClick}
@@ -81,14 +81,14 @@ export function BookmarkButton() {
         <div class="bookmark-pop">
           {error && <p class="error">{error}</p>}
           <form class="note-form" onSubmit={ok}>
-            <p class="bookmark-pop-head">{mark ? 'ブックマークから外します' : 'ブックマークします'}</p>
+            <p class="bookmark-pop-head">{mark ? 'ブックマークの解除' : 'ブックマークに追加'}</p>
             {mark ? (
               <p class="bookmark-pop-name">{mark.title}</p>
             ) : (
               <input type="text" value={name} maxLength={200} aria-label="ブックマークの名前" onInput={(e) => setName(e.currentTarget.value)} />
             )}
             <div class="note-form-buttons">
-              <button type="submit" disabled={busy}>OK</button>
+              <button type="submit" disabled={busy}>{mark ? '解除' : '追加'}</button>
               <button type="button" class="text-btn" onClick={() => setOpen(false)}>キャンセル</button>
               <a class="bookmark-pop-list" href="#/bookmarks">ブックマークの一覧</a>
             </div>

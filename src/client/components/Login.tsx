@@ -18,7 +18,7 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  // 2 段階認証を使っている利用者は、パスワードのあとに確認コード（アプリの 6 桁か予備のコード）を入れる
+  // 2 段階認証を使っている利用者は、パスワードのあとに確認コード（アプリの 6 桁かバックアップコード）を入れる
   const [needCode, setNeedCode] = useState(false);
   const [code, setCode] = useState('');
 
@@ -63,7 +63,7 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
   return (
     <form class="login" onSubmit={submit}>
       <h1>{PROFILE.title}</h1>
-      <p class="muted">いつ・どこに行ったかを調べる</p>
+      <p class="muted">Google タイムラインの移動・滞在履歴ビューア</p>
       {needCode ? (
         <>
           <p>認証アプリに表示されている 6 桁の確認コードを入力してください。</p>
@@ -80,7 +80,7 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
             autoFocus
           />
           <button type="submit" disabled={busy || !code.trim()}>確認</button>
-          <p class="muted note">アプリを使えないときは、予備のコード（xxxx-xxxx）を入力できます。</p>
+          <p class="muted note">認証アプリを使用できない場合は、バックアップコード（xxxx-xxxx）を入力してください。</p>
           <button type="button" class="text-btn" onClick={restart}>
             パスワードの入力に戻る
           </button>
@@ -92,7 +92,7 @@ export function Login({ onLogin }: { onLogin: (user: string) => void }) {
             autocomplete="username"
             autocapitalize="none"
             spellcheck={false}
-            placeholder="利用者名"
+            placeholder="ユーザー名"
             value={user}
             onInput={(e) => setUser(e.currentTarget.value)}
             autoFocus={!user}

@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { existsSync, readFileSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { setDefaultResultOrder } from 'node:dns';
 import { setDefaultAutoSelectFamilyAttemptTimeout } from 'node:net';
@@ -172,7 +172,7 @@ export async function fetchOsm(users: OsmUser[], opts: OsmOptions): Promise<OsmR
   // 同時に2つ動かないようにする（前の回が長引いても重ならない）。2時間以上前のロックは残骸とみなす
   const lock = join(opts.dataDir, 'osm.lock');
   if (existsSync(lock) && Date.now() - statSync(lock).mtimeMs < 2 * 3600_000) {
-    return { done: 0, addr: 0, remaining: -1, stopped: `前の実行が続いています（${readFileSync(lock, 'utf8').trim()}）` };
+    return { done: 0, addr: 0, remaining: -1, stopped: '前回の処理が実行中です' };
   }
   writeFileSync(lock, `pid ${process.pid} ${stamp()}`);
   const minWait = Math.max(MIN_WAIT_FLOOR, opts.minWait);
@@ -211,11 +211,12 @@ export async function fetchOsm(users: OsmUser[], opts: OsmOptions): Promise<OsmR
       try {
         r = await reverse(opts, t.lat, t.lng);
       } catch (e) {
-        result.stopped = `通信エラー: ${errorDetail(e)}`;
+        console.error(stamp(), '通信エラー:', errorDetail(e));
+        result.stopped = '通信エラーにより中断しました';
         break;
       }
       if (!r.body) {
-        result.stopped = `Nominatim から ${r.status} が返ったので止めました${[403, 429, 503, 509].includes(r.status) ? '（混雑か、アクセスを制限された可能性）' : ''}`;
+        result.stopped = `サーバー混雑または通信制限のため一時中断しました（HTTP ${r.status}）`;
         break;
       }
       const addr = parseNominatim(r.body);

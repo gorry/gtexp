@@ -63,7 +63,7 @@ export function BookmarksView() {
     <div class="page">
       <h2>ブックマーク</h2>
       {!items && <p class="muted">読み込んでいます…</p>}
-      {items && !items.length && <p class="muted note">まだありません。画面の右上の ☆ を押すと、その画面（日付・場所・絞り込んだ一覧など）をここに足せます。</p>}
+      {items && !items.length && <p class="muted note">ブックマークはまだありません。画面右上の ☆ ボタンから、表示中の画面（日付・場所・絞り込み条件など）を追加できます。</p>}
       {items && items.length > 5 && (
         <input type="search" value={q} placeholder="名前で絞り込む" aria-label="名前で絞り込む" onInput={(e) => setQ(e.currentTarget.value)} />
       )}
@@ -78,7 +78,7 @@ export function BookmarksView() {
               shown.length > 1 && (
                 <span
                   class="bookmark-handle"
-                  title="つかんで並べ替える"
+                  title="ドラッグして並べ替え"
                   aria-hidden="true"
                   onPointerDown={(e) => onPointerDown(e, b.id)}
                   onPointerMove={onPointerMove}
@@ -124,7 +124,7 @@ function BookmarkRow({ b, handle, dragging }: { b: Bookmark; handle: preact.Comp
           <form class="note-form" onSubmit={save}>
             <input type="text" value={name} maxLength={200} aria-label="ブックマークの名前" onInput={(e) => setName(e.currentTarget.value)} />
             <div class="note-form-buttons">
-              <button type="submit">決定</button>
+              <button type="submit">保存</button>
               <button type="button" class="text-btn" onClick={() => (setEditing(false), setName(b.title))}>キャンセル</button>
             </div>
           </form>
@@ -138,8 +138,8 @@ function BookmarkRow({ b, handle, dragging }: { b: Bookmark; handle: preact.Comp
       </div>
       {!editing && (
         <>
-          <button type="button" class="text-btn" onClick={() => setEditing(true)}>名前を変える</button>
-          <button type="button" class="text-btn" onClick={remove}>外す</button>
+          <button type="button" class="text-btn" onClick={() => setEditing(true)}>名前を変更</button>
+          <button type="button" class="text-btn" onClick={remove}>削除</button>
         </>
       )}
     </li>

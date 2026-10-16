@@ -12,7 +12,7 @@ const COLOR_NOT = '#e8710a';
 let lastView: { list: string; center: google.maps.LatLngLiteral; zoom: number; scroll: number } | null = null;
 
 type Filter = '' | 'in' | 'out';
-const FILTER_LABELS: Record<Filter, string> = { '': 'すべて', in: 'タイムラインにある', out: 'ない' };
+const FILTER_LABELS: Record<Filter, string> = { '': 'すべて', in: '訪問履歴あり', out: '訪問履歴なし' };
 
 function placeUrl(placeId: string): string {
   return `#/place/${encodeURIComponent(placeId)}`;
@@ -132,11 +132,11 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
         {listsError && (
           <p class="error">
             {listsError}{' '}
-            <button type="button" class="link-btn" onClick={loadLists}>もう一度</button>
+            <button type="button" class="link-btn" onClick={loadLists}>再読み込み</button>
           </p>
         )}
         {!lists && !listsError && <p class="muted result-count">読み込んでいます…</p>}
-        {lists && !lists.length && <p class="muted note">Takeout の保存リスト・マイマップがまだ入っていません（取り込みの画面で、Google Takeout の zip を送信してください）。</p>}
+        {lists && !lists.length && <p class="muted note">Google Takeout の保存リスト・マイマップが未取り込みです（「データの取り込み」画面から Google Takeout の zip をインポートしてください）。</p>}
         {loading && <p class="muted result-count">読み込んでいます…</p>}
         {data && (
           <p class="muted result-count">
@@ -148,7 +148,7 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
         )}
         {data && !data.osm.keys && (
           <p class="muted note">
-            位置が書かれていない店は「位置不明」になります。サーバーの管理者が OpenStreetMap のデータを用意すると、店の名前から位置を探せるようになります。
+            座標情報のないスポットは「位置不明」と表示されます（サーバーに OpenStreetMap 施設データが登録されている場合は、名称から位置を自動照合します）。
           </p>
         )}
         <ol class="place-list">
@@ -166,7 +166,7 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
                       {e.place.distM > 2 && <span class="muted">（{Math.round(e.place.distM)}m 離れた記録）</span>}
                     </span>
                   ) : (
-                    <span class="muted">タイムラインにない</span>
+                    <span class="muted">訪問履歴なし</span>
                   )}
                   {geoLabel(e) && <span class="muted">・{geoLabel(e)}</span>}
                 </div>
@@ -225,7 +225,7 @@ function ListMap({ config, list, entries, focus, onView }: {
     if (e.place) links.push(['この場所の記録', placeUrl(e.place.placeId)]);
     if (e.mapsUrl) links.push(['Google マップ', e.mapsUrl]);
     const detail = document.createElement('div');
-    detail.textContent = [e.place ? `${e.place.count} 回・最後 ${e.place.lastDate}` : 'タイムラインにない', geoLabel(e)].filter(Boolean).join('・');
+    detail.textContent = [e.place ? `${e.place.count} 回・最後 ${e.place.lastDate}` : '訪問履歴なし', geoLabel(e)].filter(Boolean).join('・');
     info.current.setContent(infoContent(e.title || '（名前なし）', links, detail));
     if (marker) info.current.open({ map, anchor: marker });
     else {
@@ -270,7 +270,7 @@ function ListMap({ config, list, entries, focus, onView }: {
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
+        <p>Google Maps API キーが設定されていないため、地図を表示できません。</p>
       </div>
     );
   }

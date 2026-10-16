@@ -43,10 +43,10 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
   return (
     <div class="about-page">
       <p>
-        <a href={loggedIn ? '#/day' : '#/'}>← {loggedIn ? '戻る' : 'ログインの画面へ'}</a>
+        <a href={loggedIn ? '#/day' : '#/'}>← {loggedIn ? '戻る' : 'ログイン画面へ'}</a>
       </p>
       <h1>{PROFILE.title}</h1>
-      <p class="muted">いつ・どこに行ったかを調べる</p>
+      <p class="muted">Google タイムラインの移動・滞在履歴ビューア</p>
 
       <table class="about-table">
         <tbody>
@@ -69,9 +69,9 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
             </tr>
           )}
           <tr>
-            <th>画面</th>
+            <th>クライアント</th>
             <td>
-              {commitText(BUILD.commit, BUILD.dirty)}（{BUILD.builtAt ? `${dateText(BUILD.builtAt)} 作成` : '開発中のバージョン'}）
+              {commitText(BUILD.commit, BUILD.dirty)}（{BUILD.builtAt ? `${dateText(BUILD.builtAt)} ビルド` : '開発版'}）
             </td>
           </tr>
           <tr>
@@ -80,12 +80,12 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
               {health ? (
                 <>
                   {health.version !== PROFILE.version && `${health.version} `}
-                  {commitText(health.commit, health.dirty)}（{dateText(health.builtAt)} 作成、{dateText(health.startedAt)} 起動）
+                  {commitText(health.commit, health.dirty)}（{dateText(health.builtAt)} ビルド、{dateText(health.startedAt)} 起動）
                 </>
               ) : error ? (
                 <span class="error">{error}</span>
               ) : (
-                '確認しています…'
+                '確認中…'
               )}
             </td>
           </tr>
@@ -93,9 +93,9 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
       </table>
       {mismatch && (
         <p class="error">
-          画面とサーバーのバージョンが違います。画面を読み込み直すと、新しいバージョンになります。{' '}
+          新しいバージョンが利用可能です。ページを再読み込みしてください。{' '}
           <button type="button" onClick={() => location.reload()}>
-            読み込み直す
+            再読み込み
           </button>
         </p>
       )}
@@ -119,7 +119,7 @@ export function About({ loggedIn }: { loggedIn: boolean }) {
             ）
           </>
         )}
-        。著作権表示と、使っているソフトウェア・データの表示は次のとおりです。
+        。著作権表示および使用しているオープンソースソフトウェア・データの表記は以下のとおりです。
       </p>
       <pre class="notice">{notice}</pre>
     </div>

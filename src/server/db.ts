@@ -277,7 +277,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- 2 段階認証（mfa.ts）。secret は有効にした鍵、pending は設定の途中の鍵（どちらも暗号化）。
--- last_step は最後に使ったコードの時刻の区切り、recovery は予備のコードのハッシュ（JSON の配列）
+-- last_step は最後に使ったコードの時刻の区切り、recovery はバックアップコードのハッシュ（JSON の配列）
 CREATE TABLE IF NOT EXISTS user_mfa (
   name TEXT PRIMARY KEY,
   secret TEXT,

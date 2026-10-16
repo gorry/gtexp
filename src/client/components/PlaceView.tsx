@@ -65,7 +65,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
           <a href={googleMapsUrl(p.lat, p.lng, p.placeId)} target="_blank" rel="noopener">Google マップ</a>
           <a href={googleEarthUrl(p.lat, p.lng)} target="_blank" rel="noopener">Google Earth</a>
           <button type="button" class="link-btn" onClick={() => setEditing(!editing)}>
-            {p.note?.name ? '名前・メモを変える' : '名前を付ける'}
+            {p.note?.name ? '名前・メモを編集' : '名前・メモを設定'}
           </button>
         </div>
         {editing && (
@@ -83,11 +83,11 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
         <dl class="place-stats">
           <dt>訪問</dt>
           <dd>{p.count.toLocaleString()} 回</dd>
-          <dt>初めて</dt>
+          <dt>初回訪問</dt>
           <dd><a href={`#/day/${p.firstDate}`}>{shortDate(p.firstDate)}</a></dd>
-          <dt>最後</dt>
+          <dt>最終訪問</dt>
           <dd><a href={`#/day/${p.lastDate}`}>{shortDate(p.lastDate)}</a></dd>
-          <dt>滞在の合計</dt>
+          <dt>合計滞在時間</dt>
           <dd>{totalDuration(p.totalMs)}</dd>
         </dl>
 
@@ -113,7 +113,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
                             （<a href={`#/place/${encodeURIComponent(v.parent.placeId)}`}>{visitName(v.parent)}</a>内）
                           </>
                         ) : (
-                          '（入れ子）'
+                          '（施設内）'
                         ))}
                     </span>
                   </li>
@@ -140,7 +140,7 @@ export function PlaceView({ placeId, config }: { placeId: string; config: Client
                       ) : s.status === 'missing' ? (
                         <span class="muted">見つかりませんでした</span>
                       ) : (
-                        <span class="muted">まだ調べていません</span>
+                        <span class="muted">未照合</span>
                       )}
                       <span class="muted label-source">
                         {s.sourceName}
@@ -190,7 +190,7 @@ function PlaceMap({ config, lat, lng, semanticType, title }: { config: ClientCon
   if (!config.mapsApiKey) {
     return (
       <div class="map map-placeholder">
-        <p>地図を表示する準備ができていません。サーバーの管理者に連絡してください。</p>
+        <p>Google Maps API キーが設定されていないため、地図を表示できません。</p>
       </div>
     );
   }
@@ -207,7 +207,7 @@ export function AreaCredit() {
   return (
     <p class="muted note credit">
       住所：<a href="https://nlftp.mlit.go.jp/isj/" target="_blank" rel="noopener">位置参照情報ダウンロードサービス（国土交通省）</a>を加工して作成。
-      いちばん近い街区・大字町丁目の代表点から推定しているため、実際の住所と違うことがあります（特に大字・町丁目は、境界の近くで隣の町になりやすい）。
+      最寄りの街区・大字町丁目の代表点から推定しているため、実際の住所と異なる場合があります。
     </p>
   );
 }
@@ -217,7 +217,7 @@ export function OsmCredit() {
   return (
     <p class="muted note credit">
       施設名・住所の一部：© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>（ODbL）。
-      近くの施設を推定しているため、別の店や施設になっていることがあります。
+      周辺の施設データから推定しているため、実際の訪問先と異なる場合があります。
     </p>
   );
 }

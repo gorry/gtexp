@@ -41,7 +41,7 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
     setError('');
     try {
       const r = await api.assignAreas();
-      setAssignResult(r.checked ? assignSummary(r) : '調べる地点はありませんでした');
+      setAssignResult(r.checked ? assignSummary(r) : '未照合の地点はありませんでした');
       onChanged();
     } catch (e) {
       setError((e as Error).message);
@@ -53,9 +53,9 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
   return (
     <>
       <section class="card">
-        <h3>住所のデータ（位置参照情報）</h3>
+        <h3>住所データベース（位置参照情報）</h3>
         {summary.areas.areas === 0 ? (
-          <p>まだ入っていません。入ると、名前のない場所に「〇〇市〇〇町一丁目」のような住所が付きます。</p>
+          <p>未登録です。登録すると、名称未設定の地点に「〇〇市〇〇町一丁目」などの住所が自動付与されます。</p>
         ) : (
           <ul class="stats">
             <li>{summary.areas.prefectures} 都道府県・代表点 {summary.areas.areas.toLocaleString()} か所</li>
@@ -63,15 +63,15 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
             <li>街区（〇番）まで分かった場所 {summary.areas.gaikuPlaces.toLocaleString()} か所（街区の代表点が 150m 以内にある場所）</li>
             {summary.areas.pending > 0 && (
               <li class="note-strong">
-                まだ住所を調べていない地点が {summary.areas.pending.toLocaleString()} か所あります。次にタイムラインを取り込んだときに調べます。
+                住所未照合の地点が {summary.areas.pending.toLocaleString()} か所あります（次回のタイムライン取り込み時にも自動で照合されます）。
                 <button type="button" class="inline-btn" disabled={assigning} onClick={assignNow}>
-                  {assigning ? '調べています…（全国分で 1 分ほど）' : '今すぐ調べる'}
+                  {assigning ? '照合中…（約 1 分かかります）' : '今すぐ照合する'}
                 </button>
               </li>
             )}
           </ul>
         )}
-        <AdminNote text="位置参照情報は、サーバーの管理者が入れます" />
+        <AdminNote text="位置参照情報データの登録はサーバー管理者が行います" />
         {assignResult && <p class="success">{assignResult}</p>}
         <AreaCredit />
       </section>
@@ -82,10 +82,10 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
           <li>
             施設名：
             {summary.osm.pois > 0
-              ? `施設 ${summary.osm.pois.toLocaleString()} 件（${summary.osm.loadedAt ? new Date(summary.osm.loadedAt).toLocaleDateString() : ''} に入れたデータ）・施設名の付いた地点 ${summary.osm.poiPlaces.toLocaleString()} か所`
-              : 'まだデータを入れていません'}
+              ? `施設データ ${summary.osm.pois.toLocaleString()} 件（${summary.osm.loadedAt ? new Date(summary.osm.loadedAt).toLocaleDateString() : ''} 登録）・施設名が付いた地点 ${summary.osm.poiPlaces.toLocaleString()} か所`
+              : '未登録'}
           </li>
-          <li>住所：調べた地点 {summary.osm.checked.toLocaleString()} / {summary.places.toLocaleString()} か所（住所が取れた地点 {summary.osm.addr.toLocaleString()} か所）</li>
+          <li>住所：照合済み {summary.osm.checked.toLocaleString()} / {summary.places.toLocaleString()} か所（取得済み {summary.osm.addr.toLocaleString()} か所）</li>
           {summary.osm.lastRun && (
             <li>
               住所の最後の取得 {new Date(summary.osm.lastRun.at).toLocaleString()}：{summary.osm.lastRun.done} か所
@@ -97,15 +97,13 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
         <details class="help">
           <summary>しくみ</summary>
           <p class="muted">
-            施設名は、サーバーに入れてある日本の OpenStreetMap のデータから、地点から 60m 以内の名前の付いた店や施設を付けます
-            （タイムラインの取り込みのたびと「今すぐ調べる」で）。
+            施設名は、サーバーに登録された日本国内の OpenStreetMap データから、地点周辺の店舗・施設名を照合して付与します（タイムライン取り込み時および「今すぐ照合する」実行時）。
           </p>
           <p class="muted">
-            住所は、サーバーが毎時、まだ調べていない地点をよく行く順に少しずつ OpenStreetMap の住所検索に問い合わせて貯めます
-            （利用規約の範囲で、15〜25 秒に1回）。海外の地点にも付きます。
+            住所は、未照合の地点を訪問頻度の高い順に OpenStreetMap（Nominatim）へ定期照会して取得します（海外の地点にも対応）。
           </p>
         </details>
-        <AdminNote text="OpenStreetMap の施設のデータを入れることと、住所を毎時取る設定は、サーバーの管理者が行います" />
+        <AdminNote text="OpenStreetMap 施設データの登録および住所の定期取得設定はサーバー管理者が行います" />
         <OsmCredit />
       </section>
       {error && <p class="error">{error}</p>}

@@ -368,7 +368,7 @@ export interface AssignOptions {
 }
 
 /**
- * 地点に住所・地点名を割り当てる（タイムラインの取り込みのたびと「今すぐ調べる」で行う作業）。
+ * 地点に住所・地点名を割り当てる（タイムラインの取り込みのたびと「今すぐ照合する」で行う作業）。
  * 取得方法ごとに、まだ調べていない地点と、データを入れ直したあとにまだ調べ直していない地点だけを調べる
  */
 export function assignForImport(db: DatabaseSync, opts: AssignOptions): AssignStats {

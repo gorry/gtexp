@@ -23,7 +23,7 @@ export function UserView({ user }: { user: string }) {
       <IconCard user={user} />
       <section class="card">
         <h3>データの取り込み</h3>
-        <p class="muted">タイムラインのエクスポートや、Google Takeout・Foursquare Swarm の書き出しを取り込みます。</p>
+        <p class="muted">タイムラインのエクスポートや、Google Takeout・Foursquare Swarm のアーカイブを取り込みます。</p>
         <a class="file-button" href="#/import">
           データの取り込みを開く
         </a>
@@ -95,7 +95,7 @@ function IconCard({ user }: { user: string }) {
           </div>
         </div>
       </div>
-      <p class="muted note">画像の中央を正方形に切り抜き、512×512 ピクセルより大きければ縮めて保存します。</p>
+      <p class="muted note">画像は中央で正方形に切り抜かれ、最大 512×512 ピクセルに縮小して保存されます。</p>
       <input
         ref={input}
         type="file"
@@ -127,7 +127,7 @@ function PasswordCard({ mfa, onChanged }: { mfa: boolean; onChanged: () => void 
     setMessage('');
     setError('');
     if (next !== again) {
-      setError('新しいパスワードが一致しません。確認して、もう一度入力してください。');
+      setError('新しいパスワードが一致しません。');
       return;
     }
     setBusy(true);
@@ -138,7 +138,7 @@ function PasswordCard({ mfa, onChanged }: { mfa: boolean; onChanged: () => void 
       onChanged();
       setNext('');
       setAgain('');
-      setMessage('パスワードを変更しました。ほかの端末では、ログアウトされます。');
+      setMessage('パスワードを変更しました（他の端末からはログアウトされます）。');
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -150,11 +150,11 @@ function PasswordCard({ mfa, onChanged }: { mfa: boolean; onChanged: () => void 
     <section class="card">
       <h3>パスワードの変更</h3>
       <form class="password-form" onSubmit={submit}>
-        <input type="password" value={current} autocomplete="current-password" placeholder="今のパスワード" aria-label="今のパスワード" onInput={(e) => setCurrent(e.currentTarget.value)} />
+        <input type="password" value={current} autocomplete="current-password" placeholder="現在のパスワード" aria-label="現在のパスワード" onInput={(e) => setCurrent(e.currentTarget.value)} />
         <input type="password" value={next} autocomplete="new-password" placeholder="新しいパスワード（8 文字以上）" aria-label="新しいパスワード" onInput={(e) => setNext(e.currentTarget.value)} />
-        <input type="password" value={again} autocomplete="new-password" placeholder="新しいパスワード（もう一度）" aria-label="新しいパスワード（もう一度）" onInput={(e) => setAgain(e.currentTarget.value)} />
+        <input type="password" value={again} autocomplete="new-password" placeholder="新しいパスワード（確認）" aria-label="新しいパスワード（確認）" onInput={(e) => setAgain(e.currentTarget.value)} />
         {mfa && (
-          <input type="text" inputMode="numeric" autocomplete="one-time-code" value={code} placeholder="確認コード（認証アプリの 6 桁）" aria-label="確認コード" onInput={(e) => setCode(e.currentTarget.value)} />
+          <input type="text" inputMode="numeric" autocomplete="one-time-code" value={code} placeholder="確認コード（6 桁）" aria-label="確認コード" onInput={(e) => setCode(e.currentTarget.value)} />
         )}
         <div>
           <button type="submit" disabled={busy || !current || !next || !again || (mfa && !code.trim())}>
@@ -162,7 +162,7 @@ function PasswordCard({ mfa, onChanged }: { mfa: boolean; onChanged: () => void 
           </button>
         </div>
       </form>
-      <p class="muted note">変更すると、ほかの端末ではログアウトされます。</p>
+      <p class="muted note">変更すると、他の端末からは自動的にログアウトされます。</p>
       {message && <p>{message}</p>}
       {error && <p class="error">{error}</p>}
     </section>

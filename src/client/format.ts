@@ -134,6 +134,6 @@ export function shortDate(date: string): string {
 
 /** 住所・地点名の割り当ての結果の説明。調べた取得方法だけを出す */
 export function assignSummary(r: AssignStats): string {
-  const parts = r.bySource.map((s) => `${s.name} ${s.assigned.toLocaleString()} / ${s.checked.toLocaleString()}`);
-  return `${r.checked.toLocaleString()} か所の住所・地点名を調べました（付いた数 / 調べた数：${parts.join('、')}）`;
+  const parts = r.bySource.map((s) => `${s.name}: ${s.assigned.toLocaleString()}件`);
+  return `${r.checked.toLocaleString()} か所の住所・地点名を照合しました（${parts.join('、')}）`;
 }

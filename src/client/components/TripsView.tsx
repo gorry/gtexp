@@ -95,7 +95,7 @@ export function TripsView({ query }: { query: URLSearchParams }) {
             ))}
           </select>
         </div>
-        <p class="muted note">Google のタイムラインが「旅行」としてまとめた記録です。行き先は地域を指す場所で、名前は Google マップで確認して自分で付けられます。</p>
+        <p class="muted note">Google タイムラインで「旅行」として記録されたデータです。行き先には Google マップで地域を確認して任意の名前を設定できます。</p>
       </section>
       {error && <p class="error">{error}</p>}
       {items && (
@@ -106,7 +106,7 @@ export function TripsView({ query }: { query: URLSearchParams }) {
           {!from && !to && bars.length > 1 && (
             <section class="card">
               <BarChart
-                caption="年ごとの旅行の日数（棒を押すとその年の旅行だけに）"
+                caption="年別の旅行日数（グラフをクリックするとその年で絞り込み）"
                 bars={bars}
                 onPick={(y) => {
                   setFrom(`${y}-01-01`);

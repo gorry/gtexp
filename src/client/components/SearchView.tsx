@@ -64,7 +64,7 @@ const GROUP_LABELS: Record<SearchGroup, string> = {
   year: '年ごと',
   month: '月ごと',
   weekday: '曜日ごと',
-  hour: '時間帯ごと（始まった時刻）',
+  hour: '時間帯ごと（開始時刻）',
   mode: '移動手段ごと',
 };
 
@@ -72,8 +72,8 @@ const KIND_LABELS: Record<PlaceKind, string> = {
   '': 'すべての場所',
   home: '自宅',
   work: '職場',
-  named: '名前を付けた場所',
-  unnamed: '名前のない場所',
+  named: '名前登録済み',
+  unnamed: '名前未設定',
 };
 
 function toggle<T>(list: T[], v: T): T[] {
@@ -267,18 +267,18 @@ export function SearchView({ query }: { query: URLSearchParams }) {
             <span class="muted chips-note">{filters.modes.length ? '' : 'すべての移動手段'}</span>
           </div>
         ) : (
-          <p class="muted note">滞在にも移動にも記録されていない時間です（10 分未満の隙間は除きます）。端末の電源が切れていたときや、位置の記録が止まっていたときに起こります。</p>
+          <p class="muted note">滞在・移動のいずれも記録されていない時間帯です（10 分未満の空白を除く）。端末の電源オフや位置情報の一時停止などにより発生します。</p>
         )}
         {isMoves && (
           <p class="muted note">
             {filters.target === 'departures'
-              ? '滞在を終えて移動を始めた回数です。場所の条件は、出た場所に当てはめます。'
-              : '移動を終えて滞在を始めた回数です。場所の条件は、着いた場所に当てはめます。'}
-            乗り換えと、推定の立ち寄りは数えません。
+              ? '滞在先から移動を開始した回数です（場所の絞り込みは出発地に適用されます）。'
+              : '移動を終えて滞在を開始した回数です（場所の絞り込みは到着地に適用されます）。'}
+            乗り換えおよび推定の立ち寄りは集計対象外です。
           </p>
         )}
         {isVisits && !filters.q && !filters.kind && (
-          <p class="muted note">入れ子の場所は数えていません（時間が二重にならないように）。場所で絞ると入れ子も含めます。</p>
+          <p class="muted note">滞在時間の重複を防ぐため、施設内の滞在（サブ地点）は集計から除外しています（場所の絞り込み時は含まれます）。</p>
         )}
       </section>
 
@@ -384,7 +384,7 @@ function VisitRow({ v }: { v: Visit }) {
       <span class="muted">{hhmm(v.start)}〜{hhmm(v.end)}（{duration(v.startMs, v.endMs)}）</span>
       <a href={`#/place/${encodeURIComponent(v.placeId)}`}>{visitName(v)}</a>
       {v.note?.name && label && <span class="chip">{label}</span>}
-      {v.hierarchyLevel > 0 && <span class="chip">入れ子</span>}
+      {v.hierarchyLevel > 0 && <span class="chip">施設内</span>}
       {v.estimated && <EstimatedChip />}
       {v.note && <TagList tags={v.note.tags} />}
     </li>

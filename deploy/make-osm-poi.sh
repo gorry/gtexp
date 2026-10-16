@@ -42,4 +42,4 @@ export NODE_NO_WARNINGS=1
 "${NODE:-node}" --max-old-space-size=2048 ./dist/server.mjs import-osm-poi "$OUT/poi.geojsonseq"
 
 rm -f "$OUT/poi-keys.osm.pbf"
-echo "$(date) 終わりました。画面の「取り込み」の「今すぐ調べる」か、次のタイムラインの取り込みで、地点に施設名が付きます。"
+echo "$(date) 終わりました。「このアプリについて」画面の「今すぐ照合する」か、次のタイムラインの取り込みで、地点に施設名が付きます。"

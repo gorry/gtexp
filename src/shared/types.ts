@@ -375,7 +375,7 @@ export interface MeResponse {
   icon?: string | null;
   /** 2 段階認証を使っているか */
   mfa?: boolean;
-  /** 残っている予備のコードの数 */
+  /** 残っているバックアップコードの数 */
   recoveryLeft?: number;
   /** パスワードは合い、2 段階認証の確認コードを待っている（ログインの 1 段階目の応答） */
   mfaRequired?: boolean;
