@@ -2,6 +2,8 @@
 
 ## これはなに？
 
+<img alt="Image" src="https://github.com/user-attachments/assets/6c5251e6-4efb-4603-9798-29227770ccb1" align="right" width="300" />
+
 サーバに蓄積したGoogle マップのタイムラインを、「いつ・どこに行ったか」をいろいろな形で
 調べられるようにする Web アプリです。PWAとしても使用できます。
 
