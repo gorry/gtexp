@@ -1,6 +1,6 @@
 {
   "name": "gtexp",
-  "version": "2026.1007.1",
+  "version": "2026.1017.1",
   "private": true,
   "description": "Google タイムラインのエクスポートを蓄積して、いつどこに行ったかを調べる Web アプリ",
   "license": "Apache-2.0",

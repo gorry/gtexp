@@ -47,10 +47,37 @@ export function readProfile() {
   };
 }
 
+/**
+ * package.json と package-lock.json の version を Profile.ini の [Version] Text にそろえる（Profile.ini だけを書き換えれば済むように）。
+ * 違うときだけ書き換える（npm と同じく、2 文字の字下げと末尾の改行で書く）
+ */
+function syncPackageVersion(version) {
+  const update = (name, apply) => {
+    const path = join(root, name);
+    let json;
+    try {
+      json = JSON.parse(readFileSync(path, 'utf8'));
+    } catch {
+      return; // ない（package-lock.json を作っていない）ときは何もしない
+    }
+    if (!apply(json)) return;
+    writeFileSync(path, `${JSON.stringify(json, null, 2)}
+`);
+    console.log(`${name} の version を ${version} にそろえました`);
+  };
+  update('package.json', (pkg) => pkg.version !== version && ((pkg.version = version), true));
+  update('package-lock.json', (lock) => {
+    const root = lock.packages?.[''];
+    if (lock.version === version && (!root || root.version === version)) return false;
+    lock.version = version;
+    if (root) root.version = version;
+    return true;
+  });
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const p = readProfile();
-  const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-  if (pkg.version !== p.version) console.warn(`注意: package.json の version（${pkg.version}）が Profile.ini（${p.version}）と違います`);
+  syncPackageVersion(p.version);
   const out = join(root, 'src/shared/profile.gen.ts');
   const text =
     '// Profile.ini から tools/profile.mjs が作るファイル。手で直さない（git にも入れない）\n' +
