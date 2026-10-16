@@ -22,8 +22,8 @@ function placeUrl(placeId: string): string {
 function geoLabel(e: ListEntry): string {
   if (e.geo === 'takeout' || e.geo === 'mymap') return '';
   if (e.geo === 'pin') return '地図のピン';
-  if (e.geo === 'osm') return `位置は OpenStreetMap の「${e.osmName}」から`;
-  return e.candidates ? `位置不明（OpenStreetMap に同じ名前が ${e.candidates} か所）` : '位置不明';
+  if (e.geo === 'osm') return `位置：OpenStreetMap「${e.osmName}」より推定`;
+  return e.candidates ? `位置不明（同名候補 ${e.candidates} か所）` : '位置不明';
 }
 
 /**
@@ -143,7 +143,7 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
             {shown.length.toLocaleString()} か所
             {counts.noGeo > 0 && `・位置不明 ${counts.noGeo.toLocaleString()}`}
             {counts.osm > 0 && `・OpenStreetMap から推定 ${counts.osm.toLocaleString()}`}
-            {shown.filter((e) => e.lat != null).length > MAX_PINS && `（地図には ${MAX_PINS.toLocaleString()} か所まで）`}
+            {shown.filter((e) => e.lat != null).length > MAX_PINS && `（地図表示は上位 ${MAX_PINS.toLocaleString()} か所）`}
           </p>
         )}
         {data && !data.osm.keys && (
@@ -162,7 +162,7 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
                 <div class="visit-meta">
                   {e.place ? (
                     <span>
-                      {e.place.count.toLocaleString()} 回・最後 {e.place.lastDate}
+                      {e.place.count.toLocaleString()} 回・最終 {e.place.lastDate}
                       {e.place.distM > 2 && <span class="muted">（{Math.round(e.place.distM)}m 離れた記録）</span>}
                     </span>
                   ) : (
@@ -225,7 +225,7 @@ function ListMap({ config, list, entries, focus, onView }: {
     if (e.place) links.push(['この場所の記録', placeUrl(e.place.placeId)]);
     if (e.mapsUrl) links.push(['Google マップ', e.mapsUrl]);
     const detail = document.createElement('div');
-    detail.textContent = [e.place ? `${e.place.count} 回・最後 ${e.place.lastDate}` : '訪問履歴なし', geoLabel(e)].filter(Boolean).join('・');
+    detail.textContent = [e.place ? `${e.place.count} 回・最終 ${e.place.lastDate}` : '訪問履歴なし', geoLabel(e)].filter(Boolean).join('・');
     info.current.setContent(infoContent(e.title || '（名前なし）', links, detail));
     if (marker) info.current.open({ map, anchor: marker });
     else {

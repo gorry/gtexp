@@ -222,11 +222,10 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <ol>
             <li>端末の「設定」→「位置情報」→「位置情報サービス」→「タイムライン」を開きます</li>
             <li>「タイムライン データをエクスポート」でファイルを保存します</li>
-            <li>保存したファイルを「共有」→「G Timeline Explorer」（または gtexp）で送るか、この画面で選びます</li>
+            <li>保存したファイルを「共有」からこのアプリへ送るか、この画面の「ファイルを選択」から取り込みます</li>
           </ol>
           <p class="muted">
-            ファイルには毎回、端末にある全期間が入っています。取り込むと、そのファイルの最初の日以降を新しい内容で置き換え、
-            それより前のデータは残します。自分で付けた名前やメモは消えません。
+            取り込んだファイルの開始日以降のデータが更新されます（それより前の記録や、登録した名前・メモ・タグは保持されます）。
           </p>
         </details>
         <details class="help">
@@ -235,7 +234,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           <ol>
             <li>
               <a href="https://takeout.google.com/" target="_blank" rel="noopener">Google Takeout</a> で次の4つを選んで書き出し、zip をダウンロードします。
-              「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」だけにします（「写真と動画」は容量のほとんどを占めますが、使いません）
+              「マップ」は「コンテンツ オプション」で「ラベルを付けた場所」のみを選択します（「写真と動画」は使用しないため選択不要です）
               <ul>
                 <li>マップ（ラベルを付けた場所だけ）</li>
                 <li>マップ（マイプレイス）：保存した場所（スター付きの場所）とクチコミ</li>
@@ -319,7 +318,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
           {summary.takeout.loadedAt && (
             <DeleteData
               kind="takeout"
-              note="Google Takeout から取り込んだデータ（保存した場所・ラベル・保存リスト・クチコミ・マイマップ）と、そこから付けた地点名・住所、ラベルを付けた場所への立ち寄りを削除します。元に戻すには、もう一度ファイルを送ってください。"
+              note="Google Takeout から取り込んだデータ（保存した場所・ラベル・保存リスト・クチコミ・マイマップ）、自動付与された地点名・住所、および推定の立ち寄りを削除します。復元するには再度ファイルをインポートしてください。"
               onDeleted={afterDelete}
             />
           )}
@@ -341,7 +340,7 @@ export function ImportView({ query, onImported }: { query: URLSearchParams; onIm
             <p>未取り込みです。上の「ファイルのインポート」から Swarm のエクスポート zip を取り込むと、チェックインした店舗名を地点名として利用できます。</p>
           )}
           {summary.swarm.loadedAt && (
-            <DeleteData kind="swarm" note="Foursquare Swarm から取り込んだチェックインと、そこから付けた店の名前を削除します。元に戻すには、もう一度ファイルを送ってください。" onDeleted={afterDelete} />
+            <DeleteData kind="swarm" note="Foursquare Swarm から取り込んだチェックイン履歴と、自動付与された店舗名を削除します。復元するには再度ファイルをインポートしてください。" onDeleted={afterDelete} />
           )}
         </section>
       )}

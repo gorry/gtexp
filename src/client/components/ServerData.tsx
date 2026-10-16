@@ -59,8 +59,8 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
         ) : (
           <ul class="stats">
             <li>{summary.areas.prefectures} 都道府県・代表点 {summary.areas.areas.toLocaleString()} か所</li>
-            <li>大字・町丁目まで分かった場所 {summary.areas.places.toLocaleString()} / {summary.places.toLocaleString()} か所（付いていないのは、データのない都道府県や海外などの場所です）</li>
-            <li>街区（〇番）まで分かった場所 {summary.areas.gaikuPlaces.toLocaleString()} か所（街区の代表点が 150m 以内にある場所）</li>
+            <li>大字・町丁目まで判明：{summary.areas.places.toLocaleString()} / {summary.places.toLocaleString()} か所（未登録の都道府県や海外の地点を除く）</li>
+            <li>街区（〇番）まで判明：{summary.areas.gaikuPlaces.toLocaleString()} か所</li>
             {summary.areas.pending > 0 && (
               <li class="note-strong">
                 住所未照合の地点が {summary.areas.pending.toLocaleString()} か所あります（次回のタイムライン取り込み時にも自動で照合されます）。
@@ -88,7 +88,7 @@ export function ServerDataCards({ summary, onChanged }: { summary: SummaryRespon
           <li>住所：照合済み {summary.osm.checked.toLocaleString()} / {summary.places.toLocaleString()} か所（取得済み {summary.osm.addr.toLocaleString()} か所）</li>
           {summary.osm.lastRun && (
             <li>
-              住所の最後の取得 {new Date(summary.osm.lastRun.at).toLocaleString()}：{summary.osm.lastRun.done} か所
+              最終取得日時 {new Date(summary.osm.lastRun.at).toLocaleString()}：{summary.osm.lastRun.done} か所
               {summary.osm.lastRun.remaining >= 0 && `・残り ${summary.osm.lastRun.remaining.toLocaleString()} か所`}
               {summary.osm.lastRun.stopped && <span class="error">（{summary.osm.lastRun.stopped}）</span>}
             </li>

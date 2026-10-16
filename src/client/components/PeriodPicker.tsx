@@ -69,7 +69,7 @@ export function PeriodPicker({ from, to, onChange }: Props) {
             const f = e.currentTarget.value;
             onChange(f, f && to && f > to ? f : to);
           }}
-          aria-label="期間の始め"
+          aria-label="開始日"
         />
         <span class="muted">〜</span>
         <input
@@ -79,7 +79,7 @@ export function PeriodPicker({ from, to, onChange }: Props) {
             const t = e.currentTarget.value;
             onChange(from && t && t < from ? t : from, t);
           }}
-          aria-label="期間の終わり"
+          aria-label="終了日"
         />
       </div>
     </div>

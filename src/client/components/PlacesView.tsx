@@ -176,7 +176,7 @@ export function PlacesView({ config, query }: { config: ClientConfig; query: URL
         </div>
 
         <p class="muted result-count">
-          {loading && items.length === 0 ? '探しています…' : `${total.toLocaleString()} か所`}
+          {loading && items.length === 0 ? '読み込んでいます…' : `${total.toLocaleString()} か所`}
           {total > MAX_PINS && items.length > 0 && `（地図表示は上位 ${Math.min(items.length, MAX_PINS)} か所）`}
         </p>
         {error && <p class="error">{error}</p>}
@@ -247,7 +247,7 @@ function PlaceItem({ p, rank, selected, onSelect }: { p: PlaceSummary; rank: num
         {areaHint(p) && <div class="visit-meta muted">{areaHint(p)}</div>}
         <div class="visit-time">
           <strong>{p.count.toLocaleString()} 回</strong>
-          <span class="muted">・最後 {p.lastDate}・合計 {totalDuration(p.totalMs)}</span>
+          <span class="muted">・最終 {p.lastDate}・合計 {totalDuration(p.totalMs)}</span>
         </div>
         {p.note?.memo && <div class="visit-memo">{p.note.memo}</div>}
       </div>
@@ -391,7 +391,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
     // 描き終わる（idle）前に吹き出しから詳細へ移っても、戻ったときにこの位置を出す
     lastView = { center: { lat: p.lat, lng: p.lng }, zoom: 17 };
     const detail = document.createElement('div');
-    detail.textContent = `${p.count} 回・最後 ${p.lastDate}`;
+    detail.textContent = `${p.count} 回・最終 ${p.lastDate}`;
     info.current?.setContent(
       infoContent(visitName(p), [
         ['この場所の記録', placeUrl(p.placeId)],
@@ -412,7 +412,7 @@ function PlacesMap({ config, items, marks, focus, selected, area, onSelect, onBo
     const marker = markers.current.get(selected);
     if (!p || !marker) return;
     const detail = document.createElement('div');
-    detail.textContent = `${p.count} 回・最後 ${p.lastDate}`;
+    detail.textContent = `${p.count} 回・最終 ${p.lastDate}`;
     info.current?.setContent(
       infoContent(visitName(p), [
         ['この場所の記録', placeUrl(p.placeId)],

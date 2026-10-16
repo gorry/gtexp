@@ -79,7 +79,7 @@ export function TripView({ startMs, config }: { startMs: number; config: ClientC
           ))}
         </ul>
 
-        <h3 class="section-title">日ごと</h3>
+        <h3 class="section-title">日別</h3>
         <ul class="visit-dates">
           {data.days.map((d) => (
             <li>

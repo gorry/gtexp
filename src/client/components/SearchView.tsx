@@ -61,11 +61,11 @@ function filtersToQuery(f: Filters, forApi: boolean): URLSearchParams {
 }
 
 const GROUP_LABELS: Record<SearchGroup, string> = {
-  year: '年ごと',
-  month: '月ごと',
-  weekday: '曜日ごと',
-  hour: '時間帯ごと（開始時刻）',
-  mode: '移動手段ごと',
+  year: '年別',
+  month: '月別',
+  weekday: '曜日別',
+  hour: '時間帯別（開始時刻）',
+  mode: '移動手段別',
 };
 
 const KIND_LABELS: Record<PlaceKind, string> = {
@@ -294,7 +294,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
 
           <section class="card">
             <div class="filter-row chart-controls">
-              <select value={filters.group} onChange={(e) => set({ group: e.currentTarget.value as SearchGroup })} aria-label="まとめ方">
+              <select value={filters.group} onChange={(e) => set({ group: e.currentTarget.value as SearchGroup })} aria-label="集計単位">
                 {Object.entries(GROUP_LABELS)
                   .filter(([g]) => isActivities || g !== 'mode')
                   .map(([v, l]) => (
@@ -310,14 +310,14 @@ export function SearchView({ query }: { query: URLSearchParams }) {
             </div>
             {group === 'mode' ? (
               <BarList
-                caption={`移動手段ごとの${measureName}`}
+                caption={`移動手段別の${measureName}`}
                 rows={[...groups]
                   .sort((a, b) => measureValue(b, effectiveMeasure) - measureValue(a, effectiveMeasure))
                   .map((g) => ({ key: g.key, label: groupLabel('mode', g.key), value: measureValue(g, effectiveMeasure), valueLabel: measureText(g, effectiveMeasure, filters.target) }))}
               />
             ) : (
               <BarChart
-                caption={`${GROUP_LABELS[group].replace(/（.*）/, '')}の${measureName}${group === 'year' ? '（棒を押すとその年の月ごとへ）' : ''}`}
+                caption={`${GROUP_LABELS[group].replace(/（.*）/, '')}の${measureName}${group === 'year' ? '（グラフをクリックすると月別表示に切り替え）' : ''}`}
                 bars={bars}
                 onPick={group === 'year' ? (y) => set({ from: `${y}-01-01`, to: `${y}-12-31`, group: 'month' }) : undefined}
               />
@@ -327,7 +327,7 @@ export function SearchView({ query }: { query: URLSearchParams }) {
               <table class="history">
                 <thead>
                   <tr>
-                    <th>{GROUP_LABELS[group].replace(/ごと.*/, '')}</th>
+                    <th>{GROUP_LABELS[group].replace(/別.*/, '')}</th>
                     <th>{countName}</th>
                     <th>日数</th>
                     {!isMoves && <th>時間</th>}
