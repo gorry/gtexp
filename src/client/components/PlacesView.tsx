@@ -66,7 +66,7 @@ const KIND_LABELS: Record<PlaceKind, string> = {
 
 /** ピンの色。まとめてタグ付けのときは選んでいる場所を青、外した場所を灰色に。それ以外は自宅・職場などの色 */
 function pinColor(p: PlaceSummary, marks: Set<string> | null): string {
-  if (marks) return marks.has(p.placeId) ? '#1a73e8' : '#9aa0a6';
+  if (marks) return marks.has(p.placeId) ? '#1a4bb3' : '#9aa0a6';
   return PIN_COLORS[p.semanticType] ?? PIN_DEFAULT;
 }
 

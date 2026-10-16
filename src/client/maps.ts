@@ -86,8 +86,8 @@ export function fitTo(map: google.maps.Map, points: google.maps.LatLngLiteral[],
 export const PIN_COLORS: Record<string, string> = {
   HOME: '#188038',
   INFERRED_HOME: '#188038',
-  WORK: '#1a73e8',
-  INFERRED_WORK: '#1a73e8',
+  WORK: '#1a4bb3',
+  INFERRED_WORK: '#1a4bb3',
 };
 export const PIN_DEFAULT = '#d93025';
 
@@ -154,7 +154,7 @@ export function addLocateControl(map: google.maps.Map): () => void {
       const el = document.createElement('div');
       el.className = 'my-location';
       dot = new google.maps.marker.AdvancedMarkerElement({ map, position: p, content: el, title: '現在地', zIndex: 100000 });
-      circle = new google.maps.Circle({ map, center: p, radius: pos.coords.accuracy, clickable: false, strokeColor: '#1a73e8', strokeOpacity: 0.4, strokeWeight: 1, fillColor: '#1a73e8', fillOpacity: 0.12 });
+      circle = new google.maps.Circle({ map, center: p, radius: pos.coords.accuracy, clickable: false, strokeColor: '#1a4bb3', strokeOpacity: 0.4, strokeWeight: 1, fillColor: '#1a4bb3', fillOpacity: 0.12 });
     } else {
       dot.position = p;
       circle?.setCenter(p);

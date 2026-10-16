@@ -4,17 +4,18 @@
   --fg: #1f2328;
   --muted: #656d76;
   --border: #d8dee4;
-  --accent: #1a73e8;
+  /* アプリの色（アイコンの地と同じ #1a4bb3）。カレンダーの濃淡・グラフの棒・選択の地もこの色合いから作る */
+  --accent: #1a4bb3;
   --accent-fg: #ffffff;
-  --selected: #e8f0fe;
+  --selected: #e5ecfa;
   --error: #c5221f;
   --success: #188038;
   --cal0: #eef1f4;
-  --cal1: #c6dbfa;
-  --cal2: #8ab4f8;
-  --cal3: #4a8af0;
-  --cal4: #1a5fd0;
-  --bar: #1a73e8;
+  --cal1: #c2d2f4;
+  --cal2: #8eaceb;
+  --cal3: #4675d8;
+  --cal4: #1743a0;
+  --bar: #1a4bb3;
   --header-h: 48px;
   color-scheme: light;
 }
@@ -26,17 +27,17 @@
     --fg: #e6edf3;
     --muted: #9198a1;
     --border: #353b42;
-    --accent: #8ab4f8;
-    --accent-fg: #0b1a33;
-    --selected: #20314d;
+    --accent: #9ab7f4;
+    --accent-fg: #0b1732;
+    --selected: #213050;
     --error: #f28b82;
     --success: #81c995;
     --cal0: #262b31;
-    --cal1: #1e3a66;
-    --cal2: #2b5aa3;
-    --cal3: #4a84e0;
-    --cal4: #8ab4f8;
-    --bar: #4a8af0;
+    --cal1: #1c2e54;
+    --cal2: #294a8e;
+    --cal3: #4675d8;
+    --cal4: #9ab7f4;
+    --bar: #4e7bda;
     color-scheme: dark;
   }
 }
@@ -607,7 +608,7 @@ textarea {
 
 .badge.type-WORK,
 .badge.type-INFERRED_WORK {
-  background: #1a73e8;
+  background: #1a4bb3;
 }
 
 .visit-body {
@@ -1634,7 +1635,7 @@ a.trip-banner:hover {
 }
 
 .locate-control button.active {
-  color: #1a73e8;
+  color: #1a4bb3;
 }
 
 .locate-control button.busy svg {
@@ -1661,7 +1662,7 @@ a.trip-banner:hover {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #1a73e8;
+  background: #1a4bb3;
   border: 2px solid #fff;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.3);
   transform: translateY(50%);

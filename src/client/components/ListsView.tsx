@@ -6,7 +6,7 @@ import { fitTo, infoContent, useGoogleMap } from '../maps';
 
 /** 地図に出すピンの上限（多すぎると重くなる） */
 const MAX_PINS = 2000;
-const COLOR_VISITED = '#1a73e8';
+const COLOR_VISITED = '#1a4bb3';
 const COLOR_NOT = '#e8710a';
 /** 最後に見ていた地図の位置と一覧の位置。場所の詳細から戻ったときに同じところを出すため */
 let lastView: { list: string; center: google.maps.LatLngLiteral; zoom: number; scroll: number } | null = null;
