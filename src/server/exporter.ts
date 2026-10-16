@@ -89,7 +89,7 @@ function toCsv(data: ExportData): string {
   let rows: unknown[][];
   if (data.kind === 'visits') {
     rows = [
-      ['日付', '開始', '終了', '滞在（分）', '名前', '種類', '住所', 'メモ', 'タグ', '入れ子', '緯度', '経度', 'placeId', 'Google マップ'],
+      ['日付', '開始', '終了', '滞在（分）', '名前', '種類', '住所', 'メモ', 'タグ', '施設内', '緯度', '経度', 'placeId', 'Google マップ'],
       ...data.items.map((v) => [
         v.start.slice(0, 10), v.start, v.end, minutes(v.startMs, v.endMs), placeName(v.note, v.semanticType, v.address, v.placeName),
         SEMANTIC[v.semanticType] ?? '', address(v.address), v.note?.memo ?? '', (v.note?.tags ?? []).map((t) => `#${t}`).join(' '), v.hierarchyLevel > 0 ? '1' : '',
@@ -106,7 +106,7 @@ function toCsv(data: ExportData): string {
     ];
   } else {
     rows = [
-      ['名前', '種類', '住所', '訪問回数', '初めて', '最後', '滞在の合計（時間）', 'メモ', 'タグ', '緯度', '経度', 'placeId', 'Google マップ'],
+      ['名前', '種類', '住所', '訪問回数', '初回訪問', '最終訪問', '合計滞在時間（時間）', 'メモ', 'タグ', '緯度', '経度', 'placeId', 'Google マップ'],
       ...data.items.map((p) => [
         placeName(p.note, p.semanticType, p.address, p.placeName), SEMANTIC[p.semanticType] ?? '', address(p.address), p.count, p.firstDate, p.lastDate,
         (p.totalMs / 3_600_000).toFixed(1), p.note?.memo ?? '', (p.note?.tags ?? []).map((t) => `#${t}`).join(' '),

@@ -62,7 +62,7 @@ function sendJson(res: ServerResponse, status: number, body: unknown, headers: R
  * 間違いはログインの失敗と同じに数え、続いたら断る。401 だと画面がログアウトしたとみなすので、400 で返す
  */
 async function confirmIdentity(config: Config, shared: DatabaseSync, user: string, given: { password?: unknown; code?: unknown }): Promise<void> {
-  if (tooManyFailures()) throw new HttpError(429, '確認の失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度試してください。');
+  if (tooManyFailures()) throw new HttpError(429, '認証の失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
   const fail = async (message: string) => {
     loginFailures.push(Date.now());
     await new Promise((r) => setTimeout(r, 1000));
@@ -71,11 +71,11 @@ async function confirmIdentity(config: Config, shared: DatabaseSync, user: strin
   if ('password' in given) {
     const u = getUser(shared, user);
     if (!u || typeof given.password !== 'string' || !verifyPassword(given.password, u.passwordHash)) {
-      await fail('現在のパスワードが正しくありません。確認してもう一度入力してください。');
+      await fail('現在のパスワードが正しくありません。');
     }
   }
   if (mfaEnabled(shared, user) && (typeof given.code !== 'string' || !checkMfaCode(shared, user, given.code, config.sessionSecret))) {
-    await fail('確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+    await fail('確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
   }
 }
 
@@ -88,7 +88,7 @@ async function readRawBody(req: IncomingMessage, limit: number): Promise<Buffer>
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) throw new HttpError(413, '画像が大きすぎます。別の画像を選んでください。');
+    if (size > limit) throw new HttpError(413, '画像サイズが大きすぎます。別の画像を選択してください。');
     chunks.push(chunk);
   }
   return Buffer.concat(chunks);
@@ -99,7 +99,7 @@ async function readJsonBody(req: IncomingMessage, limit = 1_000_000): Promise<an
   let size = 0;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) throw new HttpError(413, '送られたデータが大きすぎます');
+    if (size > limit) throw new HttpError(413, '送信されたデータが大きすぎます。');
     chunks.push(chunk);
   }
   try {
@@ -136,17 +136,17 @@ const SORTS: PlaceSort[] = ['count', 'last', 'first', 'duration'];
 function parsePlaceQuery(p: URLSearchParams): PlaceQuery {
   const date = (key: string) => {
     const v = p.get(key) ?? '';
-    if (v && !DATE_RE.test(v)) throw new HttpError(400, `${key} は YYYY-MM-DD で指定してください`);
+    if (v && !DATE_RE.test(v)) throw new HttpError(400, '日付の形式が正しくありません（YYYY-MM-DD）。');
     return v;
   };
   const kind = (p.get('kind') ?? '') as PlaceKind;
   const sort = (p.get('sort') ?? 'count') as PlaceSort;
-  if (!KINDS.includes(kind)) throw new HttpError(400, 'kind の値が正しくありません');
-  if (!SORTS.includes(sort)) throw new HttpError(400, 'sort の値が正しくありません');
+  if (!KINDS.includes(kind)) throw new HttpError(400, '種類の指定が正しくありません。');
+  if (!SORTS.includes(sort)) throw new HttpError(400, '並び順の指定が正しくありません。');
   let bbox: PlaceQuery['bbox'] = null;
   if (p.get('bbox')) {
     const nums = p.get('bbox')!.split(',').map(Number);
-    if (nums.length !== 4 || nums.some((n) => !Number.isFinite(n))) throw new HttpError(400, 'bbox は 南,西,北,東 で指定してください');
+    if (nums.length !== 4 || nums.some((n) => !Number.isFinite(n))) throw new HttpError(400, '地図範囲（bbox）の指定が正しくありません。');
     bbox = nums as [number, number, number, number];
   }
   const int = (key: string, def: number, max: number) => Math.min(Math.max(Number(p.get(key) ?? def) || 0, 0), max);
@@ -170,13 +170,13 @@ function parseSearchQuery(p: URLSearchParams): SearchQuery {
   const base = parsePlaceQuery(p); // 期間・q・kind・limit・offset の読み方は場所の一覧と同じ
   const target = (p.get('target') ?? 'visits') as SearchTarget;
   const group = (p.get('group') ?? 'year') as SearchGroup;
-  if (!TARGETS.includes(target)) throw new HttpError(400, 'target の値が正しくありません');
-  if (!GROUPS.includes(group)) throw new HttpError(400, 'group の値が正しくありません');
+  if (!TARGETS.includes(target)) throw new HttpError(400, '集計対象の指定が正しくありません。');
+  if (!GROUPS.includes(group)) throw new HttpError(400, '集計単位の指定が正しくありません。');
   const list = (key: string) => (p.get(key) ?? '').split(',').map((s) => s.trim()).filter(Boolean);
   const weekdays = list('weekdays').map(Number);
-  if (weekdays.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) throw new HttpError(400, 'weekdays は 0〜6 で指定してください');
+  if (weekdays.some((n) => !Number.isInteger(n) || n < 0 || n > 6)) throw new HttpError(400, '曜日の指定が正しくありません。');
   const modes = list('modes');
-  if (modes.some((m) => !/^[A-Z_]+$/.test(m))) throw new HttpError(400, 'modes の値が正しくありません');
+  if (modes.some((m) => !/^[A-Z_]+$/.test(m))) throw new HttpError(400, '移動手段の指定が正しくありません。');
   return { target, from: base.from, to: base.to, weekdays, q: base.q, kind: base.kind, modes, group, limit: base.limit, offset: base.offset };
 }
 
@@ -186,7 +186,7 @@ function parseSearchQuery(p: URLSearchParams): SearchQuery {
  */
 function handleExport(db: DatabaseSync, p: URLSearchParams, res: ServerResponse): void {
   const format = (p.get('format') ?? '') as ExportFormat;
-  if (!EXPORT_FORMATS.includes(format)) throw new HttpError(400, 'format は csv / kml / gpx / geojson のどれかです');
+  if (!EXPORT_FORMATS.includes(format)) throw new HttpError(400, '出力形式の指定が正しくありません。');
   const source = p.get('source') ?? 'search';
   let data: ExportData;
   let from = '';
@@ -197,12 +197,12 @@ function handleExport(db: DatabaseSync, p: URLSearchParams, res: ServerResponse)
     data = { kind: 'places', items: listPlaces(db, { ...q, limit: -1, offset: 0 }).items };
   } else if (source === 'search') {
     const q = parseSearchQuery(p);
-    if (q.target !== 'visits' && q.target !== 'activities') throw new HttpError(400, '滞在と移動のほかは書き出せません。');
+    if (q.target !== 'visits' && q.target !== 'activities') throw new HttpError(400, 'エクスポートできるのは「滞在」と「移動」のみです。');
     ({ from, to } = q);
     const r = search(db, { ...q, limit: -1, offset: 0 });
     data = q.target === 'visits' ? { kind: 'visits', items: r.visits } : { kind: 'activities', items: r.activities };
   } else {
-    throw new HttpError(400, 'source は search か places です');
+    throw new HttpError(400, '出力元の指定が正しくありません。');
   }
   const kindName = { visits: '滞在', activities: '移動', places: '場所' }[data.kind];
   const period = from || to ? `${from || '…'} 〜 ${to || '…'}` : '全期間';
@@ -240,7 +240,7 @@ const importing = new Set<string>();
 
 /** アップロードされたファイル（gzip でも素の JSON でもよい）を、利用者のフォルダーに保存して取り込む */
 async function handleImport(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
-  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理しています。終わってから、もう一度送信してください。');
+  if (importing.has(user)) throw new HttpError(409, '現在、別のデータ処理を実行中です。完了してから再度お試しください。');
   importing.add(user);
   const dir = join(userDir(config.dataDir, user), 'imports');
   mkdirSync(dir, { recursive: true });
@@ -262,9 +262,9 @@ async function handleImport(config: Config, user: string, db: DatabaseSync, req:
     try {
       data = JSON.parse(text);
     } catch {
-      throw new HttpError(400, 'ファイルを読み込めませんでした。タイムラインのエクスポートで保存したファイルを選んでください。');
+      throw new HttpError(400, 'ファイルを読み込めませんでした。タイムラインのエクスポートファイルを選択してください。');
     }
-    if (!isTimelineExport(data)) throw new HttpError(400, 'タイムラインのエクスポートのファイルではありません。端末の「タイムライン データをエクスポート」で保存したファイルを選んでください。');
+    if (!isTimelineExport(data)) throw new HttpError(400, 'タイムラインのエクスポートファイルではありません。端末の「タイムライン データをエクスポート」で保存したファイルを選択してください。');
 
     // 元ファイルは gzip で残しておく（後で作り直せるように）
     const stored = join(dir, `${stamp}_${fileName.replace(/\.gz$/, '')}.gz`);
@@ -301,9 +301,9 @@ const TAKEOUT_MAX_BYTES = 200 * 1024 * 1024;
  */
 async function handleTakeout(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
   if (Number(req.headers['content-length'] ?? 0) > TAKEOUT_MAX_BYTES) {
-    throw new HttpError(413, 'ファイルが大きすぎます。Takeout では「マップ」と「保存済み」だけを選び、「マップ」の「写真と動画」を外して書き出してください。');
+    throw new HttpError(413, 'ファイルサイズが大きすぎます。Takeout では「マップ」と「保存済み」のみを選択し、「マップ」内の「写真と動画」を除外してエクスポートしてください。');
   }
-  if (importing.has(user)) throw new HttpError(409, '別の取り込みを処理しています。終わってから、もう一度送信してください。');
+  if (importing.has(user)) throw new HttpError(409, '現在、別のデータ処理を実行中です。完了してから再度お試しください。');
   importing.add(user);
   // 受け取った zip を一時的に置く場所（取り出したら消す）
   const tmp = join(userDir(config.dataDir, user), 'takeout-upload');
@@ -317,21 +317,21 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
         duplex: 'half',
       } as RequestInit).formData();
     } catch {
-      throw new HttpError(400, 'ファイルを受信できませんでした。もう一度送信してください。');
+      throw new HttpError(400, 'ファイルを受信できませんでした。再度お試しください。');
     }
     const files = form.getAll('file').filter((v): v is File => typeof v !== 'string');
-    if (!files.length) throw new HttpError(400, 'ファイルが選ばれていません。');
+    if (!files.length) throw new HttpError(400, 'ファイルが選択されていません。');
     rmSync(tmp, { recursive: true, force: true });
     mkdirSync(tmp, { recursive: true });
     for (const [i, file] of files.entries()) {
       const buf = Buffer.from(await file.arrayBuffer());
-      if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません。Takeout や Swarm の書き出しの zip を選んでください。`);
+      if (buf.length < 4 || buf.readUInt32LE(0) !== 0x04034b50) throw new HttpError(400, `${file.name} は zip ファイルではありません。Takeout または Swarm のエクスポートファイル（.zip）を選択してください。`);
       writeFileSync(join(tmp, `${String(i + 1).padStart(2, '0')}_${file.name.replace(/[^\w.\-]/g, '_').slice(0, 100)}`), buf);
     }
     let result: Omit<ZipImportResult, 'ok' | 'addresses'>;
     try {
       const { swarm, others } = splitSwarmZips([tmp]);
-      if (swarm.length > 1) throw new Error('Swarm の zip は 1 つだけ送信してください（毎回、全期間のチェックインが入っています）');
+      if (swarm.length > 1) throw new Error('Swarm の zip ファイルは 1 つずつ取り込んでください。');
       result = {
         takeout: others.length ? importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), others) : null,
         swarm: swarm.length ? importSwarmZip(db, join(userDir(config.dataDir, user), 'swarm'), swarm[0]) : null,
@@ -377,7 +377,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
 
   if (path === '/api/login' && method === 'POST') {
-    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度ログインしてください。');
+    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const { user: rawUser, password } = await readJsonBody(req);
     const name = String(rawUser ?? '').trim().toLowerCase();
     const user = name ? getUser(shared, name) : null;
@@ -404,14 +404,14 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/login/mfa' && method === 'POST') {
     // ログインの 2 段階目：アプリの 6 桁のコードか、バックアップコードを確かめる（間違いはログインの失敗と同じに数える）
-    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度ログインしてください。');
+    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const name = mfaPendingUser(req, config.sessionSecret, (n) => getUser(shared, n)?.sessionKey ?? null);
-    if (!name) throw new HttpError(400, '確認の時間が過ぎました。もう一度、パスワードからログインしてください。');
+    if (!name) throw new HttpError(400, '確認コードの有効期限が切れました。もう一度パスワード入力からやり直してください。');
     const { code } = await readJsonBody(req);
     if (typeof code !== 'string' || !checkMfaCode(shared, name, code, config.sessionSecret)) {
       loginFailures.push(Date.now());
       await new Promise((r) => setTimeout(r, 1000));
-      throw new HttpError(400, '確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+      throw new HttpError(400, '確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
     }
     const u = getUser(shared, name)!;
     sendJson(res, 200, { loggedIn: true, user: name }, {
@@ -440,7 +440,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     );
     return;
   }
-  if (!user) throw new HttpError(401, 'ログインしていません。ログインし直してください。');
+  if (!user) throw new HttpError(401, 'セッションの有効期限が切れました。再度ログインしてください。');
   // ここから先は、ログインしている利用者の記録だけを扱う
   const db = userDb(config, user);
 
@@ -456,7 +456,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     }
     if (method === 'PUT') {
       const data = await readRawBody(req, ICON_MAX_BYTES);
-      if (!iconType(data)) throw new HttpError(400, '画像を読み込めませんでした。別の画像を選んでください。');
+      if (!iconType(data)) throw new HttpError(400, '画像を読み込めませんでした。別の画像を選択してください。');
       mkdirSync(dir, { recursive: true });
       saveIcon(dir, data);
       sendJson(res, 200, { icon: iconVersion(dir) });
@@ -471,7 +471,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (path === '/api/me/password' && method === 'POST') {
     // パスワードを変える。今のパスワードを確かめる（間違いはログインの失敗と同じに数える）。
     // ほかの端末はログアウトされ、この端末には新しいログインを渡す
-    if (tooManyFailures()) throw new HttpError(429, 'パスワードの確認の失敗が続いたため、しばらく受け付けません。時間をおいてから、もう一度試してください。');
+    if (tooManyFailures()) throw new HttpError(429, '認証の失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const { current, next, code } = await readJsonBody(req);
     if (typeof next !== 'string' || next.length < PASSWORD_MIN) throw new HttpError(400, `新しいパスワードは ${PASSWORD_MIN} 文字以上にしてください。`);
     await confirmIdentity(config, shared, user, { password: current, code });
@@ -494,7 +494,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     // （2 段階認証なしでログインした端末を残さない）。この端末には新しいログインを渡す
     const { code } = await readJsonBody(req);
     const codes = typeof code === 'string' ? finishMfaSetup(shared, user, code, config.sessionSecret) : null;
-    if (!codes) throw new HttpError(400, '確認コードが違います。アプリに表示されている 6 桁を確認して、もう一度入力してください。');
+    if (!codes) throw new HttpError(400, '確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
     const key = rotateSessionKey(shared, user);
     sendJson(res, 200, { recoveryCodes: codes }, {
       'Set-Cookie': issueSessionCookie(config.sessionSecret, user, key, config.sessionDays, isHttps(req)),
@@ -519,7 +519,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   const purge = /^\/api\/data\/(timeline|takeout|swarm|userdata)$/.exec(path);
   if (purge && method === 'DELETE') {
     // 取り込みの画面から、送ったデータを消す（取り込みの途中は断る）
-    if (importing.has(user)) throw new HttpError(409, '取り込みか住所の割り当てを処理しています。終わってから、もう一度試してください。');
+    if (importing.has(user)) throw new HttpError(409, '現在、別のデータ処理を実行中です。完了してから再度お試しください。');
     importing.add(user);
     try {
       const dir = userDir(config.dataDir, user);
@@ -579,7 +579,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/areas/assign' && method === 'POST') {
     // 取り込みのときと同じ割り当てを、取り込み直さずに行う（位置参照情報を入れた直後など）
-    if (importing.has(user)) throw new HttpError(409, '取り込みか住所の割り当てを処理しています。終わってから、もう一度試してください。');
+    if (importing.has(user)) throw new HttpError(409, '現在、別のデータ処理を実行中です。完了してから再度お試しください。');
     importing.add(user);
     try {
       sendJson(res, 200, assignForImport(db, assignOptions(config)));
@@ -598,13 +598,13 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/day' && method === 'GET') {
     const date = url.searchParams.get('date') ?? '';
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, 'date は YYYY-MM-DD で指定してください');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new HttpError(400, '日付の形式が正しくありません（YYYY-MM-DD）。');
     sendJson(res, 200, getDay(db, date, config.tzOffsetMinutes));
     return;
   }
   if (path === '/api/calendar' && method === 'GET') {
     const year = Number(url.searchParams.get('year'));
-    if (!Number.isInteger(year)) throw new HttpError(400, 'year を指定してください');
+    if (!Number.isInteger(year)) throw new HttpError(400, '年の指定が正しくありません。');
     sendJson(res, 200, getCalendar(db, year));
     return;
   }
@@ -620,7 +620,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   const tripMatch = path.match(/^\/api\/trips\/(\d+)$/);
   if (tripMatch && method === 'GET') {
     const detail = getTrip(db, Number(tripMatch[1])); // 開始時刻（ms）
-    if (!detail) throw new HttpError(404, 'その旅行の記録はありません');
+    if (!detail) throw new HttpError(404, '該当する旅行の記録が見つかりません。');
     sendJson(res, 200, detail);
     return;
   }
@@ -635,7 +635,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/lists/entries' && method === 'GET') {
     const list = url.searchParams.get('list') ?? '';
-    if (!list) throw new HttpError(400, 'list を指定してください');
+    if (!list) throw new HttpError(400, 'リストが指定されていません。');
     sendJson(res, 200, listEntries(db, list, config.takeoutNearM));
     return;
   }
@@ -650,7 +650,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   const placeMatch = path.match(/^\/api\/places\/([^/]+)$/);
   if (placeMatch && method === 'GET') {
     const detail = getPlace(db, decodeURIComponent(placeMatch[1]));
-    if (!detail) throw new HttpError(404, 'その場所の記録はありません');
+    if (!detail) throw new HttpError(404, '該当する場所の記録が見つかりません。');
     sendJson(res, 200, detail);
     return;
   }
@@ -658,7 +658,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     // まとめてタグ付け：{ placeIds, add, remove }。実際に変わった場所の placeId を返す
     const body = await readJsonBody(req);
     const ids: string[] = Array.isArray(body.placeIds) ? body.placeIds.map(String) : [];
-    if (!ids.length || ids.length > 2000) throw new HttpError(400, 'placeIds は 1〜2000 件で指定してください');
+    if (!ids.length || ids.length > 2000) throw new HttpError(400, '対象の場所（1〜2,000 件）を指定してください。');
     const tags = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map((t) => normalizeTag(String(t))).filter(Boolean))] : []);
     const add = tags(body.add);
     const remove = tags(body.remove);
@@ -674,7 +674,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     // { hash, title }。同じ画面がもうあれば、名前だけ変える
     const body = await readJsonBody(req);
     const hash = String(body.hash ?? '');
-    if (!/^#\/[^\s]*$/.test(hash) || hash.length > 2000) throw new HttpError(400, 'hash は #/ で始まる画面の URL で指定してください');
+    if (!/^#\/[^\s]*$/.test(hash) || hash.length > 2000) throw new HttpError(400, 'ブックマーク先の URL 指定が正しくありません。');
     sendJson(res, 200, addBookmark(db, hash, bookmarkTitle(body.title, hash)));
     return;
   }
@@ -682,7 +682,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     // { ids }：並べたい順の id
     const body = await readJsonBody(req);
     const ids: number[] = Array.isArray(body.ids) ? [...new Set(body.ids.map(Number).filter(Number.isInteger))] as number[] : [];
-    if (!ids.length || ids.length > 10_000) throw new HttpError(400, 'ids を並べたい順に指定してください');
+    if (!ids.length || ids.length > 10_000) throw new HttpError(400, '並び順の指定が正しくありません。');
     reorderBookmarks(db, ids);
     sendJson(res, 200, listBookmarks(db));
     return;
@@ -691,7 +691,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (bookmarkMatch && method === 'PUT') {
     const body = await readJsonBody(req);
     const b = renameBookmark(db, Number(bookmarkMatch[1]), bookmarkTitle(body.title, ''));
-    if (!b) throw new HttpError(404, 'そのブックマークはありません');
+    if (!b) throw new HttpError(404, '該当するブックマークが見つかりません。');
     sendJson(res, 200, b);
     return;
   }
@@ -722,7 +722,7 @@ function serve(): void {
     route(config, shared, req, res).catch((e) => {
       const status = e instanceof HttpError ? e.status : 500;
       if (status === 500) console.error(e);
-      if (!res.headersSent) sendJson(res, status, { error: e instanceof HttpError ? e.message : 'サーバーでエラーが発生しました。時間をおいて、もう一度試してください。' });
+      if (!res.headersSent) sendJson(res, status, { error: e instanceof HttpError ? e.message : 'サーバーでエラーが発生しました。しばらく待ってから再度お試しください。' });
       else res.end();
     });
   });

@@ -212,7 +212,7 @@ export function extractTakeout(paths: string[]): TakeoutExtract {
     }
   }
   if (!Object.keys(out).length) {
-    throw new Error('Takeout の zip から Google マップのデータ（保存した場所・ラベルを付けた場所・保存済み・クチコミ・マイマップ）が見つかりませんでした（「マップ」「マップ（マイプレイス）」「保存済み」「マイマップ」を含めて書き出したか確かめてください）');
+    throw new Error('Takeout の zip ファイル内に Google マップのデータが見つかりませんでした（「マップ」「マップ（マイプレイス）」「保存済み」「マイマップ」を含めてエクスポートしたか確認してください）。');
   }
   return out;
 }

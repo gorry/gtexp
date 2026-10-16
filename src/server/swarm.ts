@@ -44,7 +44,7 @@ export function isSwarmZip(path: string): boolean {
 export function importSwarmZip(db: DatabaseSync, dir: string, zipPath: string) {
   if (!existsSync(zipPath) || statSync(zipPath).isDirectory()) throw new Error(`${zipPath} がありません`);
   const files = readZipEntriesFromFile(zipPath, (name) => CHECKINS_RE.test(name));
-  if (!files.length) throw new Error('Swarm の zip にチェックイン（checkins1.json など）が見つかりませんでした');
+  if (!files.length) throw new Error('Swarm の zip ファイル内にチェックインデータ（checkins1.json など）が見つかりませんでした。');
   const tmp = `${dir}.new`;
   rmSync(tmp, { recursive: true, force: true });
   mkdirSync(tmp, { recursive: true });
