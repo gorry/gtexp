@@ -4,20 +4,19 @@
 
 <img alt="Image" src="https://github.com/user-attachments/assets/6c5251e6-4efb-4603-9798-29227770ccb1" align="right" width="300" />
 
-サーバに蓄積したGoogle マップのタイムラインを、「いつ・どこに行ったか」をいろいろな形で
-調べられるようにする Web アプリです。PWAとしても使用できます。
+Google マップのタイムラインを、「いつ・どこに行ったか」をいろいろな形で調べられるようにする Web アプリです。PWAとしても使用できます。
 
-- 端末内のタイムラインを手動でエクスポートして、サーバへ送信することで蓄積します。
+- 端末内のタイムラインを手動でエクスポートして、アプリへ送信することで蓄積します。
 - 日付・場所・旅行・リストの4つの視点からタイムラインを眺めることができます。
 - タイムラインの地点データには、名前やタグを付加することができます。
-- タイムラインの地点データは座標のみのため、住所や施設名を解決する必要があります。国土交通省「位置参照情報」、OpenStreetMapデータ、自分のマップ情報を Google Takeout でエクスポートしたものから、解決を行います。
-- 蓄積・編集したデータを、CSV / KML / GPX / GeoJSON などの形式で書き出せます。
+- タイムラインの地点データは座標のみのため、住所や施設名を解決する必要があります。国土交通省「位置参照情報」、OpenStreetMapデータ、「自分のマップ情報を Google Takeout でエクスポートしたもの」をアプリ内に取り込み、解決できるようにします。
+- アプリ内で蓄積・編集したデータを、CSV / KML / GPX / GeoJSON などの形式で書き出せます。
 
 本アプリは Google とは関係のない個人のプロジェクトです。
 
 ## サーバーで動かす
 
-[deploy/README.md](deploy/README.md) を参照してください。仕様は [memo/doc/spec.md](memo/doc/spec.md)、設計方針は [memo/doc/design.md](memo/doc/design.md) にあります。
+Linux（またはFreeBSDなど）で、Web アプリとしてインストールして使う手順は、[deploy/README.md](deploy/README.md) を参照してください。
 
 ## 自分のパソコンで使う
 
@@ -25,7 +24,7 @@
 
 ## 手元で動かす（開発）
 
-Node.js 22.13 以上が必要です。
+Node.js 22.13 以上が必要です。仕様は [memo/doc/spec.md](memo/doc/spec.md)、設計方針は [memo/doc/design.md](memo/doc/design.md) にあります。
 
 ```sh
 npm install
@@ -33,7 +32,7 @@ cp deploy/gtexp.config.example.json gtexp.config.json
 npm run cli -- user-add alice      # 利用者を足す（パスワードを聞かれる）
 ```
 
-設定例のまま（`dataDir` は `./data`、`publicDir` は `./dist/public`）で、リポジトリのフォルダーの中にデータを置いて動きます。
+設定例のまま（`dataDir` は `./data`、`publicDir` は `./dist/public`）で、リポジトリのフォルダーの中にデータを置いて動かします。
 
 ```sh
 npm run cli -- import timeline/xxxx.json   # エクスポートしたファイルを取り込む
