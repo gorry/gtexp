@@ -61,22 +61,24 @@ function sendJson(res: ServerResponse, status: number, body: unknown, headers: R
  * 大事な操作の前に本人を確かめる。password を渡したらパスワードを、2 段階認証がオンならコード（6 桁かバックアップコード）を確かめる。
  * 間違いはログインの失敗と同じに数え、続いたら断る。401 だと画面がログアウトしたとみなすので、400 で返す
  */
-async function confirmIdentity(config: Config, shared: DatabaseSync, user: string, given: { password?: unknown; code?: unknown }): Promise<void> {
-  if (tooManyFailures()) throw new HttpError(429, '認証の失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
-  const fail = async (message: string) => {
-    loginFailures.push(Date.now());
-    await new Promise((r) => setTimeout(r, 1000));
-    throw new HttpError(400, message);
-  };
+async function confirmIdentity(
+  config: Config,
+  shared: DatabaseSync,
+  req: IncomingMessage,
+  user: string,
+  given: { password?: unknown; code?: unknown },
+): Promise<void> {
+  const release = reserveAttempt(failureKeys(req, user), '認証の失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
   if ('password' in given) {
     const u = getUser(shared, user);
     if (!u || typeof given.password !== 'string' || !verifyPassword(given.password, u.passwordHash)) {
-      await fail('現在のパスワードが正しくありません。');
+      return authFailed(400, '現在のパスワードが正しくありません。');
     }
   }
   if (mfaEnabled(shared, user) && (typeof given.code !== 'string' || !checkMfaCode(shared, user, given.code, config.sessionSecret))) {
-    await fail('確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
+    return authFailed(400, '確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
   }
+  release();
 }
 
 /** 画面から変えるときの、新しいパスワードの最短の長さ */
@@ -227,13 +229,63 @@ function assignOptions(config: Config): AssignOptions {
   };
 }
 
-/** ログイン失敗が続いたら待たせる（パスワード総当たり対策） */
-const loginFailures: number[] = [];
-function tooManyFailures(): boolean {
-  const since = Date.now() - 10 * 60_000;
-  while (loginFailures.length && loginFailures[0] < since) loginFailures.shift();
-  return loginFailures.length >= 10;
+/**
+ * 認証の失敗が続いたら断る（パスワード・確認コードの総当たり対策）。利用者ごと（10 分に 10 回）と、接続元ごと（10 分に 50 回）に数える。
+ * 全員まとめて数えると、誰かがわざと失敗を重ねるだけで、ほかの人もログインできなくなるため
+ */
+const FAILURE_WINDOW_MS = 10 * 60_000;
+const FAILURE_LIMIT = { user: 10, ip: 50 };
+const failures = new Map<string, number[]>();
+
+/** 接続元。Apache・nginx の後ろでは、中継したときに付く X-Forwarded-For の最後（中継の直前）を使う */
+function clientIp(req: IncomingMessage): string {
+  const direct = req.socket.remoteAddress ?? '';
+  const forwarded = String(req.headers['x-forwarded-for'] ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const loopback = direct === '127.0.0.1' || direct === '::1' || direct === '::ffff:127.0.0.1';
+  return loopback && forwarded.length ? forwarded[forwarded.length - 1] : direct;
 }
+
+const failureKeys = (req: IncomingMessage, user: string) => [`user:${user}`, `ip:${clientIp(req)}`];
+
+function recentFailures(key: string): number {
+  const since = Date.now() - FAILURE_WINDOW_MS;
+  const list = (failures.get(key) ?? []).filter((t) => t >= since);
+  if (list.length) failures.set(key, list);
+  else failures.delete(key);
+  return list.length;
+}
+
+function tooManyFailures(keys: string[]): boolean {
+  return keys.some((k) => recentFailures(k) >= (k.startsWith('user:') ? FAILURE_LIMIT.user : FAILURE_LIMIT.ip));
+}
+
+/**
+ * 認証を 1 回試す前に、先に「失敗 1 回」として数えておき、合っていたら取り消す関数を返す。上限に達していれば断る。
+ * 確かめたあとで失敗を数えると、同時に大量に送られたとき、どれも「まだ上限前」と判定されて、上限を超えて試せてしまう
+ * （確認コードの総当たりの並列すり抜け）。先に数えれば、上限の判定と数えることの間に待ち時間が入らないので、同時に送られても上限で止まる
+ */
+function reserveAttempt(keys: string[], message: string): () => void {
+  if (tooManyFailures(keys)) throw new HttpError(429, message);
+  // 存在しない利用者名で数え続けられても、覚える数が増えすぎないようにする
+  if (failures.size > 10_000) for (const k of [...failures.keys()]) recentFailures(k);
+  const at = Date.now();
+  for (const k of keys) failures.set(k, [...(failures.get(k) ?? []), at]);
+  return () => {
+    for (const k of keys) {
+      const list = failures.get(k);
+      const i = list?.indexOf(at) ?? -1;
+      if (list && i >= 0) list.splice(i, 1);
+    }
+  };
+}
+
+/** 認証に失敗したとき：少し待たせてから断る（数えるのは reserveAttempt で済んでいる） */
+async function authFailed(status: number, message: string): Promise<never> {
+  await new Promise((r) => setTimeout(r, 1000));
+  throw new HttpError(status, message);
+}
+
+const LOGIN_LIMITED = 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。';
 
 /** 取り込みか住所の割り当てを処理中の利用者 */
 const importing = new Set<string>();
@@ -377,19 +429,18 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
 
   if (path === '/api/login' && method === 'POST') {
-    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const { user: rawUser, password } = await readJsonBody(req);
-    const name = String(rawUser ?? '').trim().toLowerCase();
-    const user = name ? getUser(shared, name) : null;
+    const name = String(rawUser ?? '').trim().toLowerCase().slice(0, 64);
     if (!listUsers(shared).length) {
       console.error('利用者がいません（node dist/server.mjs user-add で登録してください）');
       throw new HttpError(500, 'ユーザーが登録されていません。サーバー管理者に連絡してください。');
     }
+    const release = reserveAttempt(failureKeys(req, name), LOGIN_LIMITED);
+    const user = name ? getUser(shared, name) : null;
     if (!user || typeof password !== 'string' || !verifyPassword(password, user.passwordHash)) {
-      loginFailures.push(Date.now());
-      await new Promise((r) => setTimeout(r, 1000));
-      throw new HttpError(401, 'ユーザー名またはパスワードが正しくありません。');
+      return authFailed(401, 'ユーザー名またはパスワードが正しくありません。');
     }
+    release();
     if (mfaEnabled(shared, user.name)) {
       // 2 段階認証がオン：ログインの Cookie はまだ渡さず、確認コードを待つ（5 分）
       sendJson(res, 200, { loggedIn: false, mfaRequired: true }, {
@@ -404,15 +455,14 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   }
   if (path === '/api/login/mfa' && method === 'POST') {
     // ログインの 2 段階目：アプリの 6 桁のコードか、バックアップコードを確かめる（間違いはログインの失敗と同じに数える）
-    if (tooManyFailures()) throw new HttpError(429, 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const name = mfaPendingUser(req, config.sessionSecret, (n) => getUser(shared, n)?.sessionKey ?? null);
     if (!name) throw new HttpError(400, '確認コードの有効期限が切れました。もう一度パスワード入力からやり直してください。');
     const { code } = await readJsonBody(req);
+    const release = reserveAttempt(failureKeys(req, name), LOGIN_LIMITED);
     if (typeof code !== 'string' || !checkMfaCode(shared, name, code, config.sessionSecret)) {
-      loginFailures.push(Date.now());
-      await new Promise((r) => setTimeout(r, 1000));
-      throw new HttpError(400, '確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
+      return authFailed(400, '確認コードが正しくありません。認証アプリの 6 桁のコードを確認してください。');
     }
+    release();
     const u = getUser(shared, name)!;
     sendJson(res, 200, { loggedIn: true, user: name }, {
       'Set-Cookie': [issueSessionCookie(config.sessionSecret, name, u.sessionKey, config.sessionDays, isHttps(req)), clearMfaPendingCookie()],
@@ -471,10 +521,9 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (path === '/api/me/password' && method === 'POST') {
     // パスワードを変える。今のパスワードを確かめる（間違いはログインの失敗と同じに数える）。
     // ほかの端末はログアウトされ、この端末には新しいログインを渡す
-    if (tooManyFailures()) throw new HttpError(429, '認証の失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。');
     const { current, next, code } = await readJsonBody(req);
     if (typeof next !== 'string' || next.length < PASSWORD_MIN) throw new HttpError(400, `新しいパスワードは ${PASSWORD_MIN} 文字以上にしてください。`);
-    await confirmIdentity(config, shared, user, { password: current, code });
+    await confirmIdentity(config, shared, req, user, { password: current, code });
     setPassword(shared, user, next);
     const updated = getUser(shared, user)!;
     sendJson(res, 200, { ok: true }, {
@@ -504,7 +553,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (path === '/api/me/mfa/disable' && method === 'POST') {
     // 無効にする：パスワードとコードの両方を確かめる
     const { password, code } = await readJsonBody(req);
-    await confirmIdentity(config, shared, user, { password, code });
+    await confirmIdentity(config, shared, req, user, { password, code });
     disableMfa(shared, user);
     sendJson(res, 200, { ok: true });
     return;
@@ -512,7 +561,7 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
   if (path === '/api/me/mfa/recovery' && method === 'POST') {
     // バックアップコードを再発行する（前のものは使えなくなる）。コードを確かめる
     const { code } = await readJsonBody(req);
-    await confirmIdentity(config, shared, user, { code });
+    await confirmIdentity(config, shared, req, user, { code });
     sendJson(res, 200, { recoveryCodes: renewRecoveryCodes(shared, user) });
     return;
   }
