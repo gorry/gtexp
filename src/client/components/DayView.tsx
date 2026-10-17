@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { Activity, ClientConfig, DayResponse, RecordGap, Visit } from '../../shared/types';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
@@ -22,6 +22,9 @@ export function DayView({ date, config, onDate }: Props) {
   const [selected, setSelected] = useState<number | null>(null);
   // スマホ幅では暦を畳んでおく（地図とリストを優先する）
   const [showCal, setShowCal] = useState(() => matchMedia('(min-width: 801px)').matches);
+  const sideRef = useRef<HTMLElement>(null);
+  const navRef = useRef<HTMLDivElement>(null);
+  const pinCal = usePinCalendar(sideRef, navRef, showCal);
 
   useEffect(() => {
     let alive = true;
@@ -57,15 +60,18 @@ export function DayView({ date, config, onDate }: Props) {
 
   return (
     <div class="split-view">
-      <aside class="side">
-        <div class="date-nav">
-          <button type="button" class="icon-btn" onClick={() => onDate(addDays(date, -1))} title="前の日">‹</button>
-          <input type="date" value={date} onChange={(e) => e.currentTarget.value && onDate(e.currentTarget.value)} />
-          <button type="button" class="icon-btn" onClick={() => onDate(addDays(date, 1))} title="次の日">›</button>
-          <button type="button" class="text-btn" onClick={() => onDate(todayIn(config.tzOffsetMinutes))}>今日</button>
-          <button type="button" class="text-btn" onClick={() => setShowCal(!showCal)}>{showCal ? 'カレンダーを閉じる' : 'カレンダー'}</button>
+      <aside class="side" ref={sideRef}>
+        {/* 日付の行はスクロールしても上に残す。PC の幅で、カレンダーと合わせても左の欄の半分に満たないときは、カレンダーも残す（styles.css の .day-head） */}
+        <div class={`day-head${pinCal ? ' pinned' : ''}`}>
+          <div class="date-nav" ref={navRef}>
+            <button type="button" class="icon-btn" onClick={() => onDate(addDays(date, -1))} title="前の日">‹</button>
+            <input type="date" value={date} onChange={(e) => e.currentTarget.value && onDate(e.currentTarget.value)} />
+            <button type="button" class="icon-btn" onClick={() => onDate(addDays(date, 1))} title="次の日">›</button>
+            <button type="button" class="text-btn" onClick={() => onDate(todayIn(config.tzOffsetMinutes))}>今日</button>
+            <button type="button" class="text-btn" onClick={() => setShowCal(!showCal)}>{showCal ? 'カレンダーを閉じる' : 'カレンダー'}</button>
+          </div>
+          {showCal && <Calendar selected={date} onPick={onDate} />}
         </div>
-        {showCal && <Calendar selected={date} onPick={onDate} />}
 
         <h2 class="day-title">{dateLabel(date)}</h2>
         {day && (day.visits.length > 0 || day.activities.length > 0) && (
@@ -117,6 +123,53 @@ export function DayView({ date, config, onDate }: Props) {
       </section>
     </div>
   );
+}
+
+/**
+ * カレンダーも上に残すか。PC の幅（801px 以上）で、日付の行とカレンダーの高さが左の欄の高さの半分に満たないとき。
+ * カレンダーは、月によって 4〜6 行と高さが変わるが、月を移るたびに残したり外したりしないよう、いつも 6 行として測る。
+ * 画面の大きさ・カレンダーの開け閉めが変わったら測り直す
+ */
+function usePinCalendar(sideRef: { current: HTMLElement | null }, navRef: { current: HTMLElement | null }, showCal: boolean): boolean {
+  const [pin, setPin] = useState(false);
+  useEffect(() => {
+    const side = sideRef.current;
+    const nav = navRef.current;
+    if (!side || !nav) return;
+    const wide = matchMedia('(min-width: 801px)');
+    const measure = () => {
+      const cal = side.querySelector<HTMLElement>('.calendar');
+      // 日付の行・カレンダー（上の余白 8px）と、残すときに付ける余白・区切り線（上 12px・下 8px・線 1px）
+      // 日付の行の高さは、残すときに付く余白・区切り線を除いて測る（付いているかどうかで結果が変わらないように）
+      const st = getComputedStyle(nav);
+      const navH = nav.offsetHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom) - parseFloat(st.borderBottomWidth);
+      const head = navH + (cal ? calendarHeight6(cal) + 8 : 0) + 21;
+      setPin(wide.matches && !!cal && head < side.clientHeight / 2);
+    };
+    const ro = new ResizeObserver(measure);
+    ro.observe(side);
+    ro.observe(nav);
+    const cal = side.querySelector('.calendar');
+    if (cal) ro.observe(cal);
+    wide.addEventListener('change', measure);
+    measure();
+    return () => {
+      ro.disconnect();
+      wide.removeEventListener('change', measure);
+    };
+  }, [showCal]);
+  return pin;
+}
+
+/** カレンダーの高さを、日の行が 6 行あるとして出す（今の行数との差を、1 行の高さと行の間で足す） */
+function calendarHeight6(cal: HTMLElement): number {
+  const grid = cal.querySelector<HTMLElement>('.calendar-grid');
+  const day = cal.querySelector<HTMLElement>('.calendar-day');
+  if (!grid || !day) return cal.offsetHeight;
+  // 格子の中は、曜日の見出し 7 つと、1 日より前の空き・日付
+  const rows = Math.ceil((grid.children.length - 7) / 7);
+  const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+  return cal.offsetHeight + (6 - rows) * (day.offsetHeight + gap);
 }
 
 function VisitItem({ v, no, date, selected, onSelect, onNote }: {
