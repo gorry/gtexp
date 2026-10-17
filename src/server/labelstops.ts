@@ -15,7 +15,11 @@ import { rebuildPlaces } from './db';
 //   - 端末は動かないと点を記録しないので、点が GAP_EXTEND_MS 以上途切れたあとに遠い点が来たときは、その遠い点の時刻まで
 //     そこにいたものとする（途切れた間を立ち寄りに含める）。ただし、その間に別の場所（LEAVE_M より遠く）の本当の滞在が
 //     始まっていたら、そこまで
-//   - 間に別の場所の本当の滞在がある 2 つの立ち寄りは、MERGE_MS 以内でもまとめない（出かけて戻ってきたため）
+//   - 間に別の場所の本当の滞在がある 2 つの立ち寄りは、MERGE_MS 以内でもまとめない（出かけて戻ってきたため）。
+//     「間に」は、その滞在が 2 つの立ち寄りの間に始まったときだけ。前から続いている滞在（タイムラインが別の場所に
+//     ずれて記録した滞在など）は、出かけたことにならないので数えない
+//   - 離れた点が 1 つだけ来て、次の点が OUTLIER_BACK_MS 以内にまた近くに戻っていれば、位置の飛び（外れた点）として無視する
+//     （夜通し同じ場所にいても、ときどき遠くの点が 1 つ記録され、そのたびに立ち寄りが切れていたため）
 //   - 移動の始まり・終わりの位置は、前後 ENDPOINT_CHECK_MS の経路の点が LEAVE_M より遠くにあれば使わない（長時間動かない
 //     移動の終わりの位置が、実際にはもう離れた時刻のものになっていることがあるため）
 // - その場所の本当の滞在（STOP_M 以内の滞在先）と、前後 COVERED_MARGIN_MS の範囲で重なる立ち寄りは足さない
@@ -31,6 +35,7 @@ const GAP_EXTEND_MS = 10 * 60_000;
 const ENDPOINT_CHECK_MS = 10 * 60_000;
 const MERGE_MS = 60 * 60_000;
 const COVERED_MARGIN_MS = 15 * 60_000;
+const OUTLIER_BACK_MS = 30 * 60_000;
 const HOME_MIN_VISITS = 10;
 
 export const LABEL_PLACE_PREFIX = 'label:';
@@ -104,10 +109,13 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
     );
     // 別の場所の本当の滞在（時間の範囲で探す）
     const realBetween = db.prepare('SELECT start_ms, lat, lng FROM visits WHERE estimated = 0 AND start_ms < ? AND end_ms > ? ORDER BY start_ms');
-    /** from〜to の間に、(lat, lng) から LEAVE_M より遠い本当の滞在があれば、その始まり（なければ null） */
+    /**
+     * from〜to の間に始まった、(lat, lng) から LEAVE_M より遠い本当の滞在があれば、その始まり（なければ null）。
+     * from より前から続いている滞在は数えない（出かけたのではなく、タイムラインが別の場所にずらして記録した滞在のことがあるため）
+     */
     const awayVisitStart = (lat: number, lng: number, from: number, to: number): number | null => {
       for (const v of realBetween.all(to, from) as any[]) {
-        if (distM(lat, lng, v.lat, v.lng) > LEAVE_M) return Math.max(v.start_ms, from);
+        if (v.start_ms >= from && distM(lat, lng, v.lat, v.lng) > LEAVE_M) return v.start_ms;
       }
       return null;
     };
@@ -124,8 +132,15 @@ export function rebuildLabelStops(db: DatabaseSync, opts: LabelStopOptions): num
       const stops: [number, number][] = [];
       let cur: [number, number] | null = null;
       let last = 0;
-      for (const p of pts) {
-        const d = p.lat < s1 || p.lat > n1 || p.lng < w1 || p.lng > e1 ? Infinity : distM(l.lat, l.lng, p.lat, p.lng);
+      const distOf = (p: Pt) => (p.lat < s1 || p.lat > n1 || p.lng < w1 || p.lng > e1 ? Infinity : distM(l.lat, l.lng, p.lat, p.lng));
+      for (let i = 0; i < pts.length; i++) {
+        const p = pts[i];
+        const d = distOf(p);
+        // 立ち寄りの途中で離れた点が 1 つだけ来て、次の点がすぐ近くに戻っていれば、外れた点として飛ばす
+        if (cur && d > LEAVE_M && p.t - last <= MAX_GAP_MS) {
+          const next = pts[i + 1];
+          if (next && next.t - p.t <= OUTLIER_BACK_MS && distOf(next) <= LEAVE_M) continue;
+        }
         if (cur && (d > LEAVE_M || p.t - last > MAX_GAP_MS)) {
           // 点が途切れたあとに離れた点が来たら、途切れた間もそこにいたものとする
           if (d > LEAVE_M && p.t - last >= GAP_EXTEND_MS && p.t - last <= MAX_GAP_MS) cur[1] = awayVisitStart(l.lat, l.lng, last, p.t) ?? p.t;
