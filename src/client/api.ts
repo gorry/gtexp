@@ -32,10 +32,16 @@ export function setUnauthorizedHandler(fn: () => void): void {
   onUnauthorized = fn;
 }
 
+/**
+ * 書き込みの要求に付けるヘッダー。サーバーはこれがない書き込みを断る（ほかのサイトから送らせる CSRF の対策。
+ * 独自のヘッダーは、ほかのサイトからは付けられない）
+ */
+export const CSRF_HEADERS = { 'X-Gtexp': '1' };
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    headers: { ...CSRF_HEADERS, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
     credentials: 'same-origin',
   });
@@ -61,7 +67,7 @@ export const api = {
   mfaRecovery: (code: string) => request<{ recoveryCodes: string[] }>('POST', '/api/me/mfa/recovery', { code }),
   /** アイコンを置き換える（画面の側で切り抜き・縮小した画像） */
   uploadIcon: async (image: Blob): Promise<{ icon: string | null }> => {
-    const res = await fetch('/api/me/icon', { method: 'PUT', body: image, headers: { 'Content-Type': image.type }, credentials: 'same-origin' });
+    const res = await fetch('/api/me/icon', { method: 'PUT', body: image, headers: { ...CSRF_HEADERS, 'Content-Type': image.type }, credentials: 'same-origin' });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       if (res.status === 401) onUnauthorized();
@@ -77,7 +83,7 @@ export const api = {
     const res = await fetch('/api/userdata', {
       method: 'POST',
       body: file,
-      headers: { 'Content-Type': 'application/json', 'X-File-Name': encodeURIComponent(name) },
+      headers: { ...CSRF_HEADERS, 'Content-Type': 'application/json', 'X-File-Name': encodeURIComponent(name) },
       credentials: 'same-origin',
     });
     const data = await res.json().catch(() => ({}));
@@ -154,7 +160,7 @@ function sendWithProgress<T>(url: string, body: XMLHttpRequestBodyInit, headers:
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('POST', url);
-    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    for (const [k, v] of Object.entries({ ...CSRF_HEADERS, ...headers })) xhr.setRequestHeader(k, v);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) onProgress('upload', e.loaded / e.total);
     };

@@ -443,10 +443,30 @@ function bookmarkTitle(v: unknown, fallback: string): string {
   return t || fallback;
 }
 
+/**
+ * どの応答にも付けるヘッダー。ほかのサイトの中に gtexp を重ねて表示させない（クリックジャッキング対策）、
+ * 応答の種類をブラウザーに推測させない、リンク先に URL の全体を渡さない。
+ * スクリプトの読み込み元を絞る CSP は、Google マップが読み込む先が多く変わりうるので付けない（frame-ancestors などだけ）
+ */
+const SECURITY_HEADERS: Record<string, string> = {
+  'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
+  'X-Frame-Options': 'DENY',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+};
+
+/**
+ * 書き込みの要求（GET・HEAD 以外の /api/）には、画面が付ける X-Gtexp ヘッダーを求める。
+ * ほかのサイトのフォームや、ヘッダーを付けられない単純な要求からは送れないので、ログインの Cookie を使った書き込み（CSRF）を防げる
+ * （独自のヘッダーを付けた要求は、ほかのサイトからは事前の確認で断られる）
+ */
+const CSRF_HEADER = 'x-gtexp';
+
 async function route(config: Config, shared: DatabaseSync, req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? '/', 'http://localhost');
   const path = url.pathname;
   const method = req.method ?? 'GET';
+  for (const [k, v] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, v);
 
   if (!path.startsWith('/api/')) {
     if (method === 'POST' && path === '/share-target') {
@@ -458,6 +478,9 @@ async function route(config: Config, shared: DatabaseSync, req: IncomingMessage,
     if (method !== 'GET' && method !== 'HEAD') throw new HttpError(405, 'Method Not Allowed');
     serveStatic(config, req, res, path);
     return;
+  }
+  if (method !== 'GET' && method !== 'HEAD' && req.headers[CSRF_HEADER] !== '1') {
+    throw new HttpError(403, 'リクエストを受け付けられませんでした。ページを再読み込みしてから再度お試しください。');
   }
 
   if (path === '/api/login' && method === 'POST') {

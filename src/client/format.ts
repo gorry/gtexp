@@ -137,3 +137,12 @@ export function assignSummary(r: AssignStats): string {
   const parts = r.bySource.map((s) => `${s.name}: ${s.assigned.toLocaleString()}件`);
   return `${r.checked.toLocaleString()} か所の住所・地点名を照合しました（${parts.join('、')}）`;
 }
+
+/**
+ * 取り込んだデータ（Takeout・Swarm など）の URL をリンクにしてよいか。https・http だけを通し、ほかは空にする
+ * （細工したファイルの javascript: などのリンクで、押したときにスクリプトが動かないように）
+ */
+export function safeUrl(url: string | undefined | null): string {
+  const u = (url ?? '').trim();
+  return /^https?:\/\//i.test(u) ? u : '';
+}

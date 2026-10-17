@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, ListEntriesResponse, ListEntry, ListSummary } from '../../shared/types';
 import { api } from '../api';
+import { safeUrl } from '../format';
 import { usePageTitle } from '../bookmarks';
 import { fitTo, infoContent, useGoogleMap } from '../maps';
 
@@ -173,8 +174,8 @@ export function ListsView({ config, query }: { config: ClientConfig; query: URLS
                 {(e.memo || e.comment) && <div class="visit-memo">{[e.memo, e.comment].filter(Boolean).join(' / ')}</div>}
                 <div class="visit-actions" onClick={(ev) => ev.stopPropagation()}>
                   {e.place && <a href={placeUrl(e.place.placeId)} onClick={() => remember()}>この場所の記録</a>}
-                  {e.mapsUrl && (
-                    <a href={e.mapsUrl} target="_blank" rel="noopener">
+                  {safeUrl(e.mapsUrl) && (
+                    <a href={safeUrl(e.mapsUrl)} target="_blank" rel="noopener">
                       Google マップ
                     </a>
                   )}
@@ -223,7 +224,7 @@ function ListMap({ config, list, entries, focus, onView }: {
     info.current ??= new google.maps.InfoWindow();
     const links: [string, string][] = [];
     if (e.place) links.push(['この場所の記録', placeUrl(e.place.placeId)]);
-    if (e.mapsUrl) links.push(['Google マップ', e.mapsUrl]);
+    if (safeUrl(e.mapsUrl)) links.push(['Google マップ', safeUrl(e.mapsUrl)]);
     const detail = document.createElement('div');
     detail.textContent = [e.place ? `${e.place.count} 回・最終 ${e.place.lastDate}` : '訪問履歴なし', geoLabel(e)].filter(Boolean).join('・');
     info.current.setContent(infoContent(e.title || '（名前なし）', links, detail));

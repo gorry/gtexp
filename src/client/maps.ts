@@ -99,6 +99,8 @@ export function infoContent(title: string, links: [string, string][], extra?: No
   t.textContent = title;
   const row = document.createElement('div');
   for (const [label, href] of links) {
+    // 画面の中の移動（#/…）と https・http だけをリンクにする（取り込んだデータの javascript: などを通さない）
+    if (!/^(https?:\/\/|#\/)/i.test(href)) continue;
     const a = document.createElement('a');
     a.href = href;
     if (/^https?:/.test(href)) {

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import type { ClientConfig, PlaceDetailResponse, PlaceVisit } from '../../shared/types';
 import { api } from '../api';
 import { usePageTitle } from '../bookmarks';
-import { areaFull, duration, googleEarthUrl, googleMapsUrl, hhmm, semanticLabel, shortDate, totalDuration } from '../format';
+import { areaFull, duration, googleEarthUrl, googleMapsUrl, hhmm, safeUrl, semanticLabel, shortDate, totalDuration } from '../format';
 import { PIN_COLORS, PIN_DEFAULT, useGoogleMap } from '../maps';
 import { visitName } from './MapView';
 import { NoteForm, TagList, hashtag, EstimatedChip } from './NoteForm';
@@ -224,7 +224,7 @@ export function OsmCredit() {
 
 /** Google Takeout のクチコミ（評価と本文・書いた日・Google マップのリンク） */
 function ReviewDetail({ detail }: { detail: Record<string, string> }) {
-  const url = detail.url?.replace(/^http:/, 'https:');
+  const url = safeUrl(detail.url?.replace(/^http:/, 'https:'));
   return (
     <span class="takeout-detail">
       {detail.review && <span class="visit-memo">{detail.review}</span>}
@@ -263,9 +263,9 @@ function SwarmDetail({ detail }: { detail: Record<string, string> }) {
       <span class="muted label-source">
         チェックイン {detail.count} 回（{period}）
         {detail.events && `・${detail.events}`}
-        {detail.url && (
+        {safeUrl(detail.url) && (
           <>
-            ・<a href={detail.url} target="_blank" rel="noopener">Foursquare で開く</a>
+            ・<a href={safeUrl(detail.url)} target="_blank" rel="noopener">Foursquare で開く</a>
           </>
         )}
       </span>
@@ -276,7 +276,7 @@ function SwarmDetail({ detail }: { detail: Record<string, string> }) {
 
 /** Google Takeout の保存した場所に付いていた情報（保存リスト・コメント・保存日・Google マップのリンク） */
 function TakeoutDetail({ detail }: { detail: Record<string, string> }) {
-  const url = detail.url?.replace(/^http:/, 'https:');
+  const url = safeUrl(detail.url?.replace(/^http:/, 'https:'));
   return (
     <span class="takeout-detail">
       {detail.lists && (
