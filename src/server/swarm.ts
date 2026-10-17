@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { transaction } from './tx';
-import { readZipEntriesFromFile } from './zip';
+import { readZipEntriesFromFile, USER_ZIP_ENTRY_MAX, type InflateBudget } from './zip';
 import { distM, getKv, loadedKey, markChecked, setKv, type Target } from './labelstore';
 
 // Foursquare の Swarm アプリで書き出したデータ（データのエクスポートの zip）から、チェックインした店の名前を地点名にする。
@@ -41,9 +41,10 @@ export function isSwarmZip(path: string): boolean {
 }
 
 /** Swarm の zip からチェックインのファイルを取り出して dir に置き（全部置き換え）、DB に入れ直す。地点への割り当てはしない */
-export function importSwarmZip(db: DatabaseSync, dir: string, zipPath: string) {
+/** budget：取り込み全体で展開してよい量の残り（画面から送られた zip のとき） */
+export function importSwarmZip(db: DatabaseSync, dir: string, zipPath: string, budget?: InflateBudget) {
   if (!existsSync(zipPath) || statSync(zipPath).isDirectory()) throw new Error(`${zipPath} がありません`);
-  const files = readZipEntriesFromFile(zipPath, (name) => CHECKINS_RE.test(name));
+  const files = readZipEntriesFromFile(zipPath, (name) => CHECKINS_RE.test(name), USER_ZIP_ENTRY_MAX, budget);
   if (!files.length) throw new Error('Swarm の zip ファイル内にチェックインデータ（checkins1.json など）が見つかりませんでした。');
   const tmp = `${dir}.new`;
   rmSync(tmp, { recursive: true, force: true });

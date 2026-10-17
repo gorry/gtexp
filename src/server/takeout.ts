@@ -2,7 +2,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { transaction } from './tx';
-import { readZip, readZipEntriesFromFile } from './zip';
+import { readZip, readZipEntriesFromFile, USER_ZIP_ENTRY_MAX, type InflateBudget } from './zip';
 import { distM, getKv, loadedKey, markChecked, setKv, type Target } from './labelstore';
 
 // Google Takeout で書き出した、自分の Google マップのデータから地点名と住所を付ける。
@@ -185,14 +185,15 @@ const NAMED_KINDS: TakeoutKind[] = ['lists', 'mymaps'];
 type TakeoutExtract = Partial<Record<TakeoutKind, { name: string; data: Buffer }[]>>;
 
 /** Takeout の zip（複数可。フォルダーを渡すと中の zip 全部）から、使うファイルだけを取り出す（写真などは読まない） */
-export function extractTakeout(paths: string[]): TakeoutExtract {
+/** budget：取り込み全体で展開してよい量の残り（画面から送られた zip のとき。サーバーのコマンドでは省く） */
+export function extractTakeout(paths: string[], budget?: InflateBudget): TakeoutExtract {
   for (const p of paths) if (!existsSync(p)) throw new Error(`${p} がありません`);
   const zips = paths.flatMap((p) =>
     statSync(p).isDirectory() ? readdirSync(p).filter((f) => /\.zip$/i.test(f)).map((f) => join(p, f)) : [p],
   );
   const out: TakeoutExtract = {};
   for (const zip of zips) {
-    for (const e of readZipEntriesFromFile(zip, (n) => [SAVED_RE, LABELED_RE, LIST_RE, REVIEW_RE, MYMAP_RE].some((re) => re.test(n)))) {
+    for (const e of readZipEntriesFromFile(zip, (n) => [SAVED_RE, LABELED_RE, LIST_RE, REVIEW_RE, MYMAP_RE].some((re) => re.test(n)), USER_ZIP_ENTRY_MAX, budget)) {
       const kind: TakeoutKind = SAVED_RE.test(e.name)
         ? 'saved'
         : LABELED_RE.test(e.name)
@@ -204,7 +205,7 @@ export function extractTakeout(paths: string[]): TakeoutExtract {
               : 'lists';
       if (kind === 'mymaps') {
         // kmz は zip の中の zip。中の KML だけを取り出して置く（アイコンの画像などは使わない）
-        const kml = readZip(e.data).find((x) => /\.kml$/i.test(x.name));
+        const kml = readZip(e.data, USER_ZIP_ENTRY_MAX, budget).find((x) => /\.kml$/i.test(x.name));
         if (kml) (out.mymaps ??= []).push({ name: basename(e.name).replace(/\.kmz$/i, '.kml'), data: kml.data });
         continue;
       }
@@ -283,8 +284,8 @@ function readTakeoutDir(dir: string): TakeoutFiles {
  * Takeout の zip から使うファイルを取り出して dir に置き（入っていた種類だけ置き換え）、dir のファイル全体から DB に入れ直す。
  * 地点への割り当てはしない。途中で失敗したら dir も DB も元のまま
  */
-export function importTakeoutZips(db: DatabaseSync, dir: string, zipPaths: string[]) {
-  const ex = extractTakeout(zipPaths);
+export function importTakeoutZips(db: DatabaseSync, dir: string, zipPaths: string[], budget?: InflateBudget) {
+  const ex = extractTakeout(zipPaths, budget);
   const tmp = `${dir}.new`;
   rmSync(tmp, { recursive: true, force: true });
   if (existsSync(dir)) cpSync(dir, tmp, { recursive: true });

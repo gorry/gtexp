@@ -1,7 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { open } from 'node:fs/promises';
-import { Readable } from 'node:stream';
+import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip, gunzipSync } from 'node:zlib';
 import { basename, extname, join, resolve, sep } from 'node:path';
@@ -16,6 +15,7 @@ import { importTimeline, isTimelineExport } from './importer';
 import { assignAll, assignForImport, importAreas, type AssignOptions } from './areas';
 import { importTakeoutZips } from './takeout';
 import { importSwarmZip, splitSwarmZips } from './swarm';
+import { newInflateBudget } from './zip';
 import { errorDetail, fetchOsm, lookupOsm, osmRun } from './osm';
 import { importOsmPois } from './osmpoi';
 import { buildPoiKeys, listEntries, listNames } from './lists';
@@ -287,11 +287,42 @@ async function authFailed(status: number, message: string): Promise<never> {
 
 const LOGIN_LIMITED = 'ログインの失敗が続いたため、一時的に制限されています。しばらく待ってから再度お試しください。';
 
+/** タイムラインのエクスポートとして受け取る上限（画面は gzip で送るので 1 割ほど。素の JSON で送られても 100MB 前後） */
+const IMPORT_MAX_BYTES = 300 * 1024 * 1024;
+/** 展開したあとの上限（JSON の文字列として扱える大きさの範囲で） */
+const IMPORT_MAX_EXPANDED = 400 * 1024 * 1024;
+
+/** gzip なら展開する（展開したあとの大きさに上限を付ける。小さな圧縮ファイルが巨大に膨らむ「圧縮爆弾」対策） */
+function gunzipLimited(raw: Buffer): Buffer {
+  if (!(raw[0] === 0x1f && raw[1] === 0x8b)) return raw;
+  try {
+    return gunzipSync(raw, { maxOutputLength: IMPORT_MAX_EXPANDED });
+  } catch (e) {
+    if (e instanceof RangeError || (e as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') {
+      throw new HttpError(413, 'ファイルを展開したサイズが大きすぎます。');
+    }
+    throw new HttpError(400, 'ファイルを読み込めませんでした。タイムラインのエクスポートファイルを選択してください。');
+  }
+}
+
+/** 送られた本文を数えながら流し、上限を超えたら止める */
+function limitBytes(limit: number): Transform {
+  let size = 0;
+  return new Transform({
+    transform(chunk, _enc, done) {
+      size += chunk.length;
+      if (size > limit) done(new HttpError(413, 'ファイルサイズが大きすぎます。'));
+      else done(null, chunk);
+    },
+  });
+}
+
 /** 取り込みか住所の割り当てを処理中の利用者 */
 const importing = new Set<string>();
 
 /** アップロードされたファイル（gzip でも素の JSON でもよい）を、利用者のフォルダーに保存して取り込む */
 async function handleImport(config: Config, user: string, db: DatabaseSync, req: IncomingMessage) {
+  if (Number(req.headers['content-length'] ?? 0) > IMPORT_MAX_BYTES) throw new HttpError(413, 'ファイルサイズが大きすぎます。');
   if (importing.has(user)) throw new HttpError(409, '現在、別のデータ処理を実行中です。完了してから再度お試しください。');
   importing.add(user);
   const dir = join(userDir(config.dataDir, user), 'imports');
@@ -301,15 +332,10 @@ async function handleImport(config: Config, user: string, db: DatabaseSync, req:
   const fileName = rawName.replace(/[^\w.\-]/g, '_').slice(0, 100);
   const tmp = join(dir, `${stamp}.upload`);
   try {
-    await pipeline(req, createWriteStream(tmp));
-    const head = Buffer.alloc(2);
-    const fh = await open(tmp, 'r');
-    await fh.read(head, 0, 2, 0);
-    await fh.close();
-    const gzipped = head[0] === 0x1f && head[1] === 0x8b;
-
+    await pipeline(req, limitBytes(IMPORT_MAX_BYTES), createWriteStream(tmp));
     const raw = readFileSync(tmp);
-    const text = (gzipped ? gunzipSync(raw) : raw).toString('utf8');
+    const gzipped = raw[0] === 0x1f && raw[1] === 0x8b;
+    const text = gunzipLimited(raw).toString('utf8');
     let data: unknown;
     try {
       data = JSON.parse(text);
@@ -365,10 +391,14 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
       form = await new Request('http://localhost/', {
         method: 'POST',
         headers: { 'content-type': String(req.headers['content-type'] ?? '') },
-        body: Readable.toWeb(req) as ReadableStream,
+        // 大きさを申告しない送り方（chunked）でも、上限を超えたら止める
+        body: Readable.toWeb(req.pipe(limitBytes(TAKEOUT_MAX_BYTES))) as ReadableStream,
         duplex: 'half',
       } as RequestInit).formData();
-    } catch {
+    } catch (e) {
+      // 上限を超えたときは、その理由を返す（受信の途中で止めた HttpError が、原因として包まれて届く）
+      const cause = e instanceof HttpError ? e : (e as { cause?: unknown })?.cause;
+      if (cause instanceof HttpError) throw cause;
       throw new HttpError(400, 'ファイルを受信できませんでした。再度お試しください。');
     }
     const files = form.getAll('file').filter((v): v is File => typeof v !== 'string');
@@ -384,9 +414,11 @@ async function handleTakeout(config: Config, user: string, db: DatabaseSync, req
     try {
       const { swarm, others } = splitSwarmZips([tmp]);
       if (swarm.length > 1) throw new Error('Swarm の zip ファイルは 1 つずつ取り込んでください。');
+      // 送られた zip をまとめて展開してよい量（Takeout と Swarm で共通。1 つずつの上限だけでは、上限の少し下のファイルを数多く並べた zip で合計が巨大になる）
+      const budget = newInflateBudget();
       result = {
-        takeout: others.length ? importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), others) : null,
-        swarm: swarm.length ? importSwarmZip(db, join(userDir(config.dataDir, user), 'swarm'), swarm[0]) : null,
+        takeout: others.length ? importTakeoutZips(db, join(userDir(config.dataDir, user), 'takeout'), others, budget) : null,
+        swarm: swarm.length ? importSwarmZip(db, join(userDir(config.dataDir, user), 'swarm'), swarm[0], budget) : null,
       };
     } catch (e) {
       throw new HttpError(400, (e as Error).message);
@@ -890,7 +922,7 @@ async function main(): Promise<void> {
       if (!args[0]) throw new Error('使い方: import [--user 名前] <エクスポートした JSON ファイル>');
       const db = openUserDb(config.dataDir, user);
       const raw = readFileSync(args[0]);
-      const text = (raw[0] === 0x1f && raw[1] === 0x8b ? gunzipSync(raw) : raw).toString('utf8');
+      const text = gunzipLimited(raw).toString('utf8');
       const data = JSON.parse(text);
       if (!isTimelineExport(data)) throw new Error('タイムラインのエクスポートファイルではありません');
       console.log(importTimeline(db, data, args[0], resolve(args[0]), assignOptions(config)));

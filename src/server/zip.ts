@@ -9,7 +9,52 @@ export interface ZipEntry {
   data: Buffer;
 }
 
-export function readZip(buf: Buffer): ZipEntry[] {
+/**
+ * 利用者が送る zip（Google Takeout・Foursquare Swarm）の中の 1 つのファイルを展開したあとの上限。使うのは JSON・CSV・KML なので十分に大きい。
+ * 小さな zip が巨大に膨らむ「圧縮爆弾」対策（管理者が入れる位置参照情報の zip には付けない）
+ */
+export const USER_ZIP_ENTRY_MAX = 200 * 1024 * 1024;
+
+/**
+ * 1 回の取り込みで展開してよい量の残り（複数の zip・zip の中の複数のファイル・zip の中の zip をまとめて数える）。
+ * 1 つずつの上限だけだと、上限の少し下のファイルを数多く並べた zip で、合計が巨大になるため
+ */
+export interface InflateBudget {
+  left: number;
+}
+
+/** 利用者が送る zip を 1 回の取り込みで展開してよい合計（実際の Takeout は数 MB、Swarm のチェックインは数十 MB） */
+export const USER_ZIP_TOTAL_MAX = 300 * 1024 * 1024;
+
+export const newInflateBudget = (): InflateBudget => ({ left: USER_ZIP_TOTAL_MAX });
+
+const TOO_LARGE_TOTAL = '取り込むファイル全体を展開したサイズが大きすぎます。';
+
+/** 展開しない（無圧縮の）ファイルも、合計には数える */
+function spend(budget: InflateBudget | undefined, bytes: number): void {
+  if (!budget) return;
+  budget.left -= bytes;
+  if (budget.left < 0) throw new Error(TOO_LARGE_TOTAL);
+}
+
+function inflateLimited(raw: Buffer, maxBytes: number, budget?: InflateBudget): Buffer {
+  const limit = Math.min(maxBytes, budget ? budget.left : Infinity);
+  if (!Number.isFinite(limit)) return inflateRawSync(raw);
+  try {
+    const out = inflateRawSync(raw, { maxOutputLength: Math.max(0, limit) });
+    spend(budget, out.length);
+    return out;
+  } catch (e) {
+    if (e instanceof RangeError || (e as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') {
+      // どちらの上限に当たったか（合計の残りの方が小さければ、合計）
+      throw new Error(budget && budget.left < maxBytes ? TOO_LARGE_TOTAL : 'zip ファイル内のファイルを展開したサイズが大きすぎます。');
+    }
+    if (e instanceof Error && e.message === TOO_LARGE_TOTAL) throw e;
+    throw new Error('zip ファイルの中身を読み込めませんでした。');
+  }
+}
+/** maxBytes：1 つのファイルを展開したあとの上限（省くと上限なし）。budget：取り込み全体で展開してよい量の残り（省くと数えない） */
+export function readZip(buf: Buffer, maxBytes = Infinity, budget?: InflateBudget): ZipEntry[] {
   // 末尾の「中央ディレクトリの終わり」レコードを探す
   let eocd = -1;
   for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--) {
@@ -38,8 +83,11 @@ export function readZip(buf: Buffer): ZipEntry[] {
     const localExtraLen = buf.readUInt16LE(localOffset + 28);
     const start = localOffset + 30 + localNameLen + localExtraLen;
     const raw = buf.subarray(start, start + compressedSize);
-    if (method === 0) entries.push({ name, data: Buffer.from(raw) });
-    else if (method === 8) entries.push({ name, data: inflateRawSync(raw) });
+    if (method === 0) {
+      spend(budget, raw.length);
+      entries.push({ name, data: Buffer.from(raw) });
+    }
+    else if (method === 8) entries.push({ name, data: inflateLimited(raw, maxBytes, budget) });
     // それ以外の圧縮方式は飛ばす
   }
   return entries;
@@ -50,7 +98,8 @@ export function readZip(buf: Buffer): ZipEntry[] {
  * 末尾の目次（中央ディレクトリ）を読んでから、必要なファイルの部分だけを読む（Takeout の数 GB の zip 用）。
  * ファイル名は UTF-8 として読む（Takeout はそうなっている）。ZIP64 には対応しない（4GB 未満の zip だけ）
  */
-export function readZipEntriesFromFile(path: string, want: (name: string) => boolean): ZipEntry[] {
+/** maxBytes：1 つのファイルを展開したあとの上限（利用者が送る zip を読むので、既定で上限を付ける） */
+export function readZipEntriesFromFile(path: string, want: (name: string) => boolean, maxBytes = USER_ZIP_ENTRY_MAX, budget?: InflateBudget): ZipEntry[] {
   const fd = openSync(path, 'r');
   try {
     const size = fstatSync(fd).size;
@@ -89,8 +138,11 @@ export function readZipEntriesFromFile(path: string, want: (name: string) => boo
       const start = localOffset + 30 + local.readUInt16LE(26) + local.readUInt16LE(28);
       const raw = Buffer.alloc(compressedSize);
       readSync(fd, raw, 0, compressedSize, start);
-      if (method === 0) entries.push({ name, data: raw });
-      else if (method === 8) entries.push({ name, data: inflateRawSync(raw) });
+      if (method === 0) {
+        spend(budget, raw.length);
+        entries.push({ name, data: raw });
+      }
+      else if (method === 8) entries.push({ name, data: inflateLimited(raw, maxBytes, budget) });
     }
     return entries;
   } finally {
