@@ -15,6 +15,10 @@
 
 本アプリは Google とは関係のない個人のプロジェクトです。
 
+## サーバーで動かす
+
+[deploy/README.md](deploy/README.md) を参照してください。仕様は [memo/doc/spec.md](memo/doc/spec.md)、設計方針は [memo/doc/design.md](memo/doc/design.md) にあります。
+
 ## 自分のパソコンで使う
 
 サーバーを用意せずに、Windows・Mac のパソコンの中だけで使う手順は [deploy/LOCAL.md](deploy/LOCAL.md) を参照してください。
@@ -39,10 +43,6 @@ node dist/server.mjs serve                 # http://localhost:8787/ で開く
 
 フロントエンドを開発・デバッグする際は、`npm run dev:server` と `npm run dev:client` を別々に動かし、
 http://localhost:5173/ を開きます（API リクエストは 8787 にプロキシされます）。
-
-## サーバーで動かす
-
-[deploy/README.md](deploy/README.md) を参照してください。仕様は [memo/doc/spec.md](memo/doc/spec.md)、設計方針は [memo/doc/design.md](memo/doc/design.md) にあります。
 
 ## 構成
 
